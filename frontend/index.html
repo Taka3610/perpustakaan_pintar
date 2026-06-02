@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Informasi Perpustakaan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-200 antialiased min-h-screen transition-colors duration-300">
+
+    <nav class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 sticky top-0 z-50 transition-colors duration-300">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-indigo-600 dark:text-indigo-400">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+                </svg>
+                <h1 class="text-lg font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-400 dark:to-violet-400 bg-clip-text text-transparent">
+                    PERPUSTAKAAN PINTAR
+                </h1>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <button onclick="toggleDarkMode()" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:ring-2 hover:ring-indigo-400 transition-all focus:outline-none" aria-label="Toggle Theme">
+                    <svg id="sun-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 hidden">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m0 13.5V21M4.22 4.22l1.58 1.58m12.42 12.42l1.58 1.58M3 12h2.25m13.5 0H21M4.22 19.78l1.58-1.58M17.66 6.34l1.58-1.58M12 7.5a4.5 4.5 0 110 9 4.5 4.5 0 010-9z" />
+                    </svg>
+                    <svg id="moon-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 12.83A9.53 9.53 0 0112 21.75c-5.282 0-9.5-4.218-9.5-9.5a9.53 9.53 0 0112-9.475 8.5 8.5 0 007.25 10.8z" />
+                    </svg>
+                </button>
+                
+                <button id="btn-status-role" onclick="handleRoleClick()" class="text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-770 shadow-sm hover:scale-105 transition-all focus:outline-none">
+                    Mode Tamu (Klik untuk Login)
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto my-8 px-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <section class="lg:col-span-2">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Koleksi Buku</h2>
+                <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Klik kartu untuk melihat detail riwayat & mencoba transaksi</span>
+            </div>
+            
+            <div id="container-buku" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <p class="text-slate-400 dark:text-slate-500 text-sm animate-pulse">Memuat koleksi buku...</p>
+            </div>
+        </section>
+
+        <section class="lg:col-span-1">
+            <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-750 p-5 sticky top-24 transition-colors duration-300">
+                <h2 class="text-lg font-bold text-slate-900 dark:text-white tracking-tight mb-1">Riwayat Transaksi</h2>
+                <p class="text-xs text-slate-400 dark:text-slate-400 font-medium mb-5 flex items-center gap-1.5" id="panel-buku-terpilih">
+                    <span class="inline-block w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600 animate-pulse"></span>
+                    Pilih buku untuk memuat log aktivitas
+                </p>
+                
+                <div id="log-riwayat" class="space-y-4 mb-6 relative before:absolute before:inset-y-0 before:left-[11px] before:w-[2px] before:bg-slate-100 dark:before:bg-slate-700 max-h-60 overflow-y-auto pr-1">
+                    <div id="placeholder-text" class="text-center py-16 text-slate-400 dark:text-slate-500">
+                        <div class="text-4xl mb-3 filter grayscale opacity-60">📋</div>
+                        <p class="text-sm font-medium text-slate-500 dark:text-slate-400">Belum ada data</p>
+                        <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">Aktivitas peminjaman akan muncul di sini.</p>
+                    </div>
+                </div>
+
+                <div id="panel-uji-backend" class="hidden border-t border-slate-100 dark:border-slate-770 pt-4">
+                    <div id="konten-simulasi-admin" class="hidden">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">Area Kelola Pencatatan</h3>
+                        <div class="space-y-3">
+                            <input type="text" id="input-nama" placeholder="Masukkan nama peminjam..." class="w-full text-xs px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-indigo-500">
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="btn-pinjam" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold text-xs py-2 rounded-lg transition-colors shadow-xs">Pinjam</button>
+                                <button id="btn-kembali" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs py-2 rounded-lg transition-colors shadow-xs">Kembali</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="peringatan-tamu" class="text-center py-2 text-xs text-slate-400 dark:text-slate-500 italic">
+                        Silakan login sebagai Admin jika ingin menambah atau mengubah transaksi buku ini.
+                    </div>
+                </div>
+
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-login" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm p-6 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 scale-95 transition-transform duration-300 mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white">Login Admin</h3>
+                <button onclick="tutupModalLogin()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold text-xl focus:outline-none">&times;</button>
+            </div>
+            <p class="text-xs text-slate-400 mb-4">Gunakan username <span class="font-semibold text-indigo-500">admin</span> dan password <span class="font-semibold text-indigo-500">admin123</span>.</p>
+            
+            <form id="form-login" onsubmit="prosesLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold mb-1 text-slate-500">Username</label>
+                    <input type="text" id="login-username" required class="w-full text-sm px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-indigo-500" placeholder="Username">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold mb-1 text-slate-500">Password</label>
+                    <input type="password" id="login-password" required class="w-full text-sm px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-indigo-500" placeholder="••••••••">
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm py-2.5 rounded-lg transition-colors shadow-md">Masuk</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+        let bukuTerpilihId = null;
+        let judulBukuTerpilih = '';
+        let isAdmin = false; 
+
+        document.addEventListener("DOMContentLoaded", () => {
+            muatKoleksiBuku();
+            perbaruiUIStatusRole();
+        });
+
+        function handleRoleClick() {
+            if (isAdmin) {
+                if (confirm("Apakah kamu ingin keluar dari akun Admin?")) {
+                    isAdmin = false;
+                    perbaruiUIStatusRole();
+                    if (bukuTerpilihId) muatRiwayat(bukuTerpilihId, judulBukuTerpilih);
+                }
+            } else {
+                bukaModalLogin();
+            }
+        }
+
+        function bukaModalLogin() {
+            const modal = document.getElementById('modal-login');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.querySelector('div').classList.remove('scale-95');
+            }, 10);
+        }
+
+        function tutupModalLogin() {
+            const modal = document.getElementById('modal-login');
+            modal.classList.add('opacity-0');
+            modal.querySelector('div').classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                document.getElementById('form-login').reset();
+            }, 300);
+        }
+
+        function prosesLogin(e) {
+            e.preventDefault();
+            const user = document.getElementById('login-username').value;
+            const pass = document.getElementById('login-password').value;
+
+            if (user === "admin" && pass === "admin123") {
+                isAdmin = true;
+                alert("Login berhasil! Anda sekarang memiliki akses Admin.");
+                tutupModalLogin();
+                perbaruiUIStatusRole();
+                if (bukuTerpilihId) muatRiwayat(bukuTerpilihId, judulBukuTerpilih);
+            } else {
+                alert("Username atau password salah!");
+            }
+        }
+
+        function perbaruiUIStatusRole() {
+            const btnRole = document.getElementById('btn-status-role');
+            const kontenSimulasi = document.getElementById('konten-simulasi-admin');
+            const peringatanTamu = document.getElementById('peringatan-tamu');
+
+            if (isAdmin) {
+                btnRole.className = "text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 px-3 py-1.5 rounded-full border border-rose-100 dark:border-rose-900/50 shadow-sm hover:scale-105 transition-all focus:outline-none";
+                btnRole.innerText = "Admin Dashboard (Klik untuk Logout)";
+                
+                if(kontenSimulasi) kontenSimulasi.classList.remove('hidden');
+                if(peringatanTamu) peringatanTamu.classList.add('hidden');
+            } else {
+                btnRole.className = "text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm hover:scale-105 transition-all focus:outline-none";
+                btnRole.innerText = "Mode Tamu (Klik untuk Login Admin)";
+                
+                if(kontenSimulasi) kontenSimulasi.classList.add('hidden');
+                if(peringatanTamu) peringatanTamu.classList.remove('hidden');
+            }
+        }
+
+        function muatKoleksiBuku() {
+            const containerBuku = document.getElementById('container-buku');
+            fetch(`${API_URL}/buku`)
+                .then(res => res.json())
+                .then(dataBuku => {
+                    containerBuku.innerHTML = '';
+                    if(dataBuku.length === 0) {
+                        containerBuku.innerHTML = '<p class="text-slate-400 text-sm">Tidak ada koleksi buku.</p>';
+                        return;
+                    }
+
+                    dataBuku.forEach(buku => {
+                        let warnaKategori = 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400';
+                        let emojiKoleksi = '📖';
+
+                        if (buku.kategori === 'Psikologi') {
+                            warnaKategori = 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400';
+                            emojiKoleksi = '🧠';
+                        } else if (buku.kategori === 'Fiksi') {
+                            warnaKategori = 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400';
+                            emojiKoleksi = '📜';
+                        } else if (buku.kategori === 'Filsafat') {
+                            warnaKategori = 'bg-purple-50 text-purple-600 dark:bg-purple-950/60 dark:text-purple-400';
+                            emojiKoleksi = '🧘';
+                        }
+
+                        const isTersedia = buku.status === 'Tersedia';
+                        const warnaStatus = isTersedia 
+                            ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-100 dark:border-emerald-900/30'
+                            : 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border-rose-100 dark:border-rose-900/30';
+
+                        const idBukuValid = buku.id || buku._id || '';
+
+                        const kartuBukuHTML = `
+                            <div onclick="pilihBuku('${idBukuValid}', '${buku.judul.replace(/'/g, "\\'")}')" class="group bg-white dark:bg-slate-800 p-4 rounded-xl border ${bukuTerpilihId === idBukuValid ? 'border-indigo-500 ring-2 ring-indigo-400/20' : 'border-slate-200 dark:border-slate-750'} shadow-sm hover:shadow-md hover:border-indigo-400 dark:hover:border-indigo-500 cursor-pointer transition-all duration-300 hover:-translate-y-0.5 flex gap-4">
+                                ${buku.cover_url ? `<img src="${buku.cover_url}" alt="Cover ${buku.judul}" class="w-20 h-28 object-cover rounded-lg shadow-sm bg-slate-100 dark:bg-slate-700" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"/>` : ''}
+                                <div class="${buku.cover_url ? 'hidden' : 'flex'} w-20 h-28 ${warnaKategori} rounded-lg flex-col items-center justify-center p-2 text-center shadow-inner">
+                                    <span class="text-xl mb-1">${emojiKoleksi}</span>
+                                    <span class="text-[10px] font-bold uppercase tracking-wider truncate w-full">${buku.judul}</span>
+                                </div>
+                                <div class="flex flex-col justify-between flex-1">
+                                    <div>
+                                        <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded ${warnaKategori}">${buku.kategori}</span>
+                                        <h3 class="font-bold text-slate-900 dark:text-white text-base mt-1.5 leading-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">${buku.judul}</h3>
+                                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${buku.penulis}</p>
+                                    </div>
+                                    <span class="text-[11px] border px-2 py-0.5 rounded-md w-max font-semibold shadow-sm ${warnaStatus}">${buku.status}</span>
+                                </div>
+                            </div>
+                        `;
+                        containerBuku.innerHTML += kartuBukuHTML;
+                    });
+                })
+                .catch(err => {
+                    containerBuku.innerHTML = '<p class="text-rose-500 text-sm">Gagal terhubung ke server backend.</p>';
+                });
+        }
+
+        function pilihBuku(idBuku, judulBuku) {
+            bukuTerpilihId = idBuku;
+            judulBukuTerpilih = judulBuku;
+            
+            document.getElementById('panel-uji-backend').classList.remove('hidden');
+            document.getElementById('input-nama').value = '';
+
+            muatRiwayat(idBuku, judulBuku);
+        }
+
+        // FUNGSI UTAMA YANG DIPERBAIKI (MEMBALIK LOG DATA BACKEND)
+        function muatRiwayat(idBuku, judulBuku) {
+            document.getElementById('panel-buku-terpilih').innerHTML = `
+                <span class="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
+                Buku: <span class="text-indigo-600 dark:text-indigo-400 font-semibold">${judulBuku}</span>
+            `;
+
+            const containerRiwayat = document.getElementById('log-riwayat');
+            containerRiwayat.innerHTML = '<p class="text-xs text-slate-400 text-center py-4 animate-pulse">Memuat riwayat...</p>'; 
+
+            fetch(`${API_URL}/riwayat/${idBuku}`)
+                .then(res => res.json())
+                .then(riwayat => {
+                    containerRiwayat.innerHTML = '';
+                    if (riwayat.length === 0) {
+                        containerRiwayat.innerHTML = '<p class="text-xs text-slate-400 text-center py-8">Belum ada transaksi.</p>';
+                        return;
+                    }
+
+                    // MEMBALIK DATA: Membuat array cadangan agar data terbaru berada di indeks awal/paling atas
+                    const riwayatTerbaruDiatas = [...riwayat].reverse();
+
+                    riwayatTerbaruDiatas.forEach(item => {
+                        const isPinjam = item.tipe === 'pinjam';
+                        const warnaBadge = isPinjam ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/30' : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/30';
+                        const iconPoin = isPinjam ? 'bg-amber-500 ring-amber-100 dark:ring-amber-950' : 'bg-emerald-500 ring-emerald-100 dark:ring-emerald-950';
+
+                        const idValid = item.id || item._id || item.id_riwayat || '';
+
+                        const tombolHapusHTML = isAdmin ? `
+                            <button onclick="hapusTransaksi('${idValid}')" class="text-slate-400 hover:text-rose-500 dark:text-slate-600 dark:hover:text-rose-400 p-1 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all focus:outline-none" title="Hapus riwayat ini">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.34 6.6m-4.78 0L9 9m4.77-3.52 1.11 1.28H19.25m-14 0H5.7l1.11-1.28M9.75 3.52 10.86 2.25h2.28l1.11 1.27m-7.23 0h7.23M19.25 7.55l-.83 12.44a2.25 2.25 0 0 1-2.24 2.22H7.82a2.25 2.25 0 0 1-2.24-2.22L4.75 7.55" />
+                                </svg>
+                            </button>
+                        ` : '';
+
+                        containerRiwayat.innerHTML += `
+                            <div class="flex items-start gap-4 relative pl-1 group/item">
+                                <div class="w-2.5 h-2.5 rounded-full ${iconPoin} mt-1.5 z-10 ring-4 bg-white dark:bg-slate-800"></div>
+                                <div class="flex-1 bg-slate-50/60 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800 text-sm shadow-xs flex justify-between items-start gap-2 hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-colors">
+                                    <div>
+                                        <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                            <span class="font-semibold text-slate-800 dark:text-slate-200">${item.nama}</span>
+                                            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${warnaBadge}">${item.aksi}</span>
+                                        </div>
+                                        <p class="text-[11px] text-slate-400 dark:text-slate-500 font-medium">Tanggal: ${item.tanggal}</p>
+                                    </div>
+                                    ${tombolHapusHTML}
+                                </div>
+                            </div>`;
+                    });
+                });
+        }
+
+        function hapusTransaksi(idRiwayat) {
+            if (!isAdmin) {
+                alert("Akses ditolak. Silakan beralih ke Mode Admin terlebih dahulu.");
+                return;
+            }
+
+            if (!idRiwayat || idRiwayat === 'undefined' || idRiwayat === '') {
+                alert("Gagal menghapus: Log data tidak valid.");
+                return;
+            }
+
+            if (!confirm("Apakah kamu yakin ingin menghapus log riwayat ini?")) return;
+
+            fetch(`${API_URL}/riwayat/${idRiwayat}`, {
+                method: 'DELETE'
+            })
+            .then(res => {
+                if(!res.ok) throw new Error('Gagal menghapus di server');
+                return res.json();
+            })
+            .then(resData => {
+                alert(resData.message || "Data berhasil dihapus!");
+                muatKoleksiBuku();
+                muatRiwayat(bukuTerpilihId, judulBukuTerpilih);
+            })
+            .catch(err => {
+                alert('Terjadi kesalahan saat menghapus data di backend.');
+            });
+        }
+
+        function kirimTransaksi(tipe) {
+            if (!isAdmin) {
+                alert('Akses ditolak. Hanya admin yang bisa membuat transaksi!');
+                return;
+            }
+
+            const nama = document.getElementById('input-nama').value.trim();
+            if(!nama) {
+                alert('Silakan isi nama peminjam dulu!');
+                return;
+            }
+
+            const payload = {
+                buku_id: bukuTerpilihId,
+                nama: nama,
+                aksi: tipe === 'pinjam' ? 'Pinjam' : 'Kembali',
+                tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+                tipe: tipe
+            };
+
+            fetch(`${API_URL}/transaksi`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'x-role': 'admin'
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(res => {
+                if(!res.ok) throw new Error('Gagal menambahkan data');
+                return res.json();
+            })
+            .then(resData => {
+                alert(resData.message || "Pencatatan sukses!");
+                muatKoleksiBuku();
+                muatRiwayat(bukuTerpilihId, judulBukuTerpilih);
+                document.getElementById('input-nama').value = '';
+            })
+            .catch(err => alert('Gagal mengirim data: Pastikan Anda adalah Admin terverifikasi.'));
+        }
+
+        document.getElementById('btn-pinjam').addEventListener('click', () => kirimTransaksi('pinjam'));
+        document.getElementById('btn-kembali').addEventListener('click', () => kirimTransaksi('kembali'));
+
+        function toggleDarkMode() {
+            const html = document.documentElement;
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+    </script>
+</body>
+</html>
