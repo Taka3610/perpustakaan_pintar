@@ -16,15 +16,19 @@ app.use(express.json());
 
 // Endpoint 1: Ambil semua koleksi buku (GET)
 app.get('/api/buku', async (req, res) => {
-    const { data, error } = await supabase
-        .from('buku')
-        .select('*')
-        .order('id', { ascending: true });
+    try {
+        const { data, error } = await supabase
+            .from('buku')
+            .select('*')
+            .order('id', { ascending: true });
 
-    if (error) {
-        return res.status(500).json({ error: error.message });
+        if (error) {
+            return res.status(400).json({ error: error.message });
+        }
+        return res.json(data || []);
+    } catch (err) {
+        return res.status(500).json({ error: "Gagal terhubung ke Supabase: " + err.message });
     }
-    res.json(data);
 });
 
 // Endpoint 2: Ambil riwayat transaksi berdasarkan ID Buku (GET)
