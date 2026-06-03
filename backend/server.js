@@ -151,4 +151,7 @@ app.delete('/api/riwayat/:id', (req, res) => {
     });
 });
 
-module.exports = app;
+// Jalankan Server
+app.listen(PORT, () => {
+    console.log(`Backend berjalan di http://localhost:${PORT}`);
+});
