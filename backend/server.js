@@ -151,5 +151,7 @@ app.delete('/api/riwayat/:id', (req, res) => {
     });
 });
 
-// Ganti app.listen(...) yang lama dengan ini:
-module.exports = app;
+// Jalankan Server
+app.listen(PORT, () => {
+    console.log(`Backend berjalan di http://localhost:${PORT}`);
+});
