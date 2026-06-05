@@ -95,7 +95,7 @@ app.get('/api/seed', async (req, res) => {
         // PERBAIKAN: Hapus data lama terlebih dahulu agar database "merefresh" dirinya sendiri
         await Buku.deleteMany({});
         await Riwayat.deleteMany({});
-        console.log('Database lama berhasil dibersihkan untuk refresh data.');
+        console.log('Database berhasil dibersihkan untuk refresh data.');
 
         // Masukkan kembali data buku yang segar
         await Buku.insertMany([
