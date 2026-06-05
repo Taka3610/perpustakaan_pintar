@@ -18,7 +18,7 @@
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
         /* Styling tambahan untuk menyesuaikan UI box scanner html5-qrcode agar rapi */
         #qr-reader-container button {
-            background-color: #4f46e5 !class;
+            background-color: #4f46e5 !important;
             color: white;
             font-size: 0.75rem;
             font-weight: 600;
@@ -75,7 +75,7 @@
                     <span class="text-lg">📷</span>
                     <h2 class="text-base font-bold text-slate-900 dark:text-white tracking-tight">Pindai QR Code Buku</h2>
                 </div>
-                <p class="text-xs text-slate-400 dark:text-slate-400 mb-4">Arahkan kamera ke QR Code berisi ID Buku (contoh: buku1) untuk mencarinya secara instan.</p>
+                <p class="text-xs text-slate-400 dark:text-slate-400 mb-4">Arahkan kamera ke QR Code. Sistem akan mendeteksi status buku dan langsung mencatat transaksi secara otomatis.</p>
                 <div id="qr-reader-container" class="overflow-hidden rounded-xl bg-slate-50 dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-700 p-2">
                     <div id="reader" class="w-full"></div>
                 </div>
@@ -98,7 +98,7 @@
                 <h2 class="text-lg font-bold text-slate-900 dark:text-white tracking-tight mb-1">Riwayat Transaksi</h2>
                 <p class="text-xs text-slate-400 dark:text-slate-400 font-medium mb-5 flex items-center gap-1.5" id="panel-buku-terpilih">
                     <span class="inline-block w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600 animate-pulse"></span>
-                    Pilih buku untuk memuat log aktivitas
+                    Pilih buku atau lakukan scan untuk memuat log aktivitas
                 </p>
                 
                 <div id="log-riwayat" class="space-y-4 mb-6 relative before:absolute before:inset-y-0 before:left-[11px] before:w-[2px] before:bg-slate-100 dark:before:bg-slate-700 max-h-60 overflow-y-auto pr-1">
@@ -111,7 +111,7 @@
 
                 <div id="panel-uji-backend" class="hidden border-t border-slate-100 dark:border-slate-770 pt-4">
                     <div id="konten-simulasi-admin" class="hidden">
-                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">Area Kelola Pencatatan</h3>
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">Area Kelola Pencatatan Manual</h3>
                         <div class="space-y-3">
                             <input type="text" id="input-nama" placeholder="Masukkan nama peminjam..." class="w-full text-xs px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-indigo-500">
                             <div class="grid grid-cols-2 gap-2">
@@ -121,7 +121,7 @@
                         </div>
                     </div>
                     <div id="peringatan-tamu" class="text-center py-2 text-xs text-slate-400 dark:text-slate-500 italic">
-                        Silakan login sebagai Admin jika ingin menambah atau mengubah transaksi buku ini.
+                        Silakan login sebagai Admin jika ingin memanipulasi atau menghapus riwayat buku ini secara manual.
                     </div>
                 </div>
 
@@ -165,42 +165,101 @@
         });
 
         // ================================================================
-        // FITUR SCANNER QR CODE (INTEGRASI BARU)
+        // FITUR SCANNER QR CODE - TRANSAKSI OTOMATIS (PERBAIKAN UTAMA)
         // ================================================================
         function inisialisasiQRScanner() {
+            let sedangMemprosesScan = false; // Mencegah spam scan ganda dalam milidetik yang sama
+
             function onScanSuccess(decodedText, decodedResult) {
-                // decodedText merupakan data string hasil scan QR (contoh: "buku3")
-                const bukuIdHasilScan = decodedText.trim();
+                if (sedangMemprosesScan) return; // Jika sedang mengirim data ke server, abaikan scan baru
                 
-                // Panggil request API untuk memastikan buku terdaftar
+                const bukuIdHasilScan = decodedText.trim();
+                sedangMemprosesScan = true; // Kunci proses
+                
+                console.log(`Membaca QR Buku ID: ${bukuIdHasilScan}`);
+                
+                // 1. Ambil data buku untuk memeriksa status saat ini (Tersedia atau sedang Dipinjam)
                 fetch(`${API_URL}/buku`)
                     .then(res => res.json())
                     .then(dataBuku => {
                         const temukanBuku = dataBuku.find(b => (b.id === bukuIdHasilScan || b._id === bukuIdHasilScan));
                         
-                        if (temukanBuku) {
-                            // Otomatis pilih buku & muat datanya ke panel riwayat transaksi
-                            pilihBuku(bukuIdHasilScan, temukanBuku.judul);
-                            
-                            // Berikan feedback visual scrolling halus ke daftar buku agar pengguna melihat perubahan
-                            document.getElementById('panel-buku-terpilih').scrollIntoView({ behavior: 'smooth' });
-                        } else {
+                        if (!temukanBuku) {
                             alert(`QR Terbaca: "${bukuIdHasilScan}", namun buku tidak ditemukan di database.`);
+                            sedangMemprosesScan = false; // Buka kunci jika gagal
+                            return;
                         }
+
+                        // Menentukan logika aksi otomatis berdasarkan status buku
+                        const tipeAksiOtomatis = (temukanBuku.status === 'Tersedia') ? 'pinjam' : 'kembali';
+                        const teksAksi = (tipeAksiOtomatis === 'pinjam') ? 'Pinjam' : 'Kembali';
+
+                        // Buat data payload transaksi otomatis
+                        const payload = {
+                            buku_id: temukanBuku.id || temukanBuku._id,
+                            nama: "Siswa (Scan QR)", // Nama terisi otomatis
+                            aksi: teksAksi,
+                            tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+                            tipe: tipeAksiOtomatis
+                        };
+
+                        // 2. Tembak rute transaksi dengan peran bypass 'admin' agar hardware langsung dapat menulis ke DB
+                        fetch(`${API_URL}/transaksi`, {
+                            method: 'POST',
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'x-role': 'admin' 
+                            },
+                            body: JSON.stringify(payload)
+                        })
+                        .then(res => {
+                            if (!res.ok) throw new Error('Gagal memproses transaksi otomatis di database.');
+                            return res.json();
+                        })
+                        .then(resData => {
+                            alert(`Berhasil! Buku "${temukanBuku.judul}" otomatis dicatat: ${teksAksi}`);
+                            
+                            // Set buku terpilih ke arah buku yang baru saja discan
+                            bukuTerpilihId = temukanBuku.id || temukanBuku._id;
+                            judulBukuTerpilih = temukanBuku.judul;
+
+                            // Tampilkan panel riwayat & update UI
+                            document.getElementById('panel-uji-backend').classList.remove('hidden');
+                            muatKoleksiBuku();
+                            muatRiwayat(bukuTerpilihId, judulBukuTerpilih);
+
+                            // Pindahkan layar secara halus ke info riwayat transaksi buku tersebut
+                            document.getElementById('panel-buku-terpilih').scrollIntoView({ behavior: 'smooth' });
+
+                            // Beri jeda 3 detik sebelum scanner diizinkan membaca QR Code selanjutnya (anti-spamming)
+                            setTimeout(() => {
+                                sedangMemprosesScan = false;
+                            }, 3000);
+                        })
+                        .catch(err => {
+                            alert('Gagal memproses transaksi: ' + err.message);
+                            sedangMemprosesScan = false;
+                        });
                     })
-                    .catch(err => alert("Gagal memverifikasi data QR: " + err.message));
+                    .catch(err => {
+                        alert("Gagal memverifikasi data ke server: " + err.message);
+                        sedangMemprosesScan = false;
+                    });
             }
 
             function onScanFailure(error) {
-                // Dimatikan agar log console tidak penuh oleh error pencarian frame kamera
+                // Dimatikan sengaja agar log browser tidak penuh
             }
 
             html5QrcodeScanner = new Html5QrcodeScanner(
-                "reader", { fps: 8, qrbox: { width: 220, height: 220 } }, /* verbose= */ false
+                "reader", { fps: 10, qrbox: { width: 220, height: 220 } }, /* verbose= */ false
             );
             html5QrcodeScanner.render(onScanSuccess, onScanFailure);
         }
 
+        // ================================================================
+        // FUNGSI LAINNYA (SINKRONISASI & MANAJEMEN DATA)
+        // ================================================================
         function handleRoleClick() {
             if (isAdmin) {
                 if (confirm("Apakah kamu ingin keluar dari akun Admin?")) {
@@ -300,8 +359,6 @@
                             : 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border-rose-100 dark:border-rose-900/30';
 
                         const idBukuValid = buku.id || buku._id || '';
-
-                        // Menghasilkan border khusus jika id buku ini sedang aktif terpilih (baik via klik maupun via scan)
                         const borderTerpilih = (bukuTerpilihId === idBukuValid) 
                             ? 'border-indigo-500 ring-2 ring-indigo-400/20 bg-indigo-50/20 dark:bg-indigo-950/10' 
                             : 'border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-800';
@@ -338,7 +395,6 @@
             document.getElementById('panel-uji-backend').classList.remove('hidden');
             document.getElementById('input-nama').value = '';
 
-            // Render ulang koleksi buku agar perubahan border aktif/terpilih langsung terlihat di UI
             muatKoleksiBuku();
             muatRiwayat(idBuku, judulBuku);
         }
@@ -369,7 +425,6 @@
                         const iconPoin = isPinjam ? 'bg-amber-500 ring-amber-100 dark:ring-amber-950' : 'bg-emerald-500 ring-emerald-100 dark:ring-emerald-950';
 
                         const idValid = item.id || item._id || item.id_riwayat || '';
-
                         const tombolHapusHTML = isAdmin ? `
                             <button onclick="hapusTransaksi('${idValid}')" class="text-slate-400 hover:text-rose-500 dark:text-slate-600 dark:hover:text-rose-400 p-1 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all focus:outline-none" title="Hapus riwayat ini">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
@@ -426,9 +481,9 @@
             });
         }
 
-        function kirimTransaksi(tipe) {
+        function kirimTransaksiManual(tipe) {
             if (!isAdmin) {
-                alert('Akses ditolak. Hanya admin yang bisa membuat transaksi!');
+                alert('Akses ditolak. Hanya admin yang bisa membuat transaksi secara manual!');
                 return;
             }
 
@@ -464,11 +519,11 @@
                 muatRiwayat(bukuTerpilihId, judulBukuTerpilih);
                 document.getElementById('input-nama').value = '';
             })
-            .catch(err => alert('Gagal mengirim data: Pastikan Anda adalah Admin terverifikasi.'));
+            .catch(err => alert('Gagal mengirim data.'));
         }
 
-        document.getElementById('btn-pinjam').addEventListener('click', () => kirimTransaksi('pinjam'));
-        document.getElementById('btn-kembali').addEventListener('click', () => kirimTransaksi('kembali'));
+        document.getElementById('btn-pinjam').addEventListener('click', () => kirimTransaksiManual('pinjam'));
+        document.getElementById('btn-kembali').addEventListener('click', () => kirimTransaksiManual('kembali'));
 
         function toggleDarkMode() {
             const html = document.documentElement;
