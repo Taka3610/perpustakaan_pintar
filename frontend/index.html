@@ -13,8 +13,28 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        /* Styling tambahan untuk menyesuaikan UI box scanner html5-qrcode agar rapi */
+        #qr-reader-container button {
+            background-color: #4f46e5 !class;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+        }
+        #qr-reader-container button:hover {
+            background-color: #4338ca;
+        }
+        #reader__dashboard_section_csr button {
+            background-color: #6b7280;
+        }
+        #reader {
+            border: none !important;
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-200 antialiased min-h-screen transition-colors duration-300">
@@ -40,7 +60,7 @@
                     </svg>
                 </button>
                 
-                <button id="btn-status-role" onclick="handleRoleClick()" class="text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-770 shadow-sm hover:scale-105 transition-all focus:outline-none">
+                <button id="btn-status-role" onclick="handleRoleClick()" class="text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm hover:scale-105 transition-all focus:outline-none">
                     Mode Tamu (Klik untuk Login)
                 </button>
             </div>
@@ -49,14 +69,27 @@
 
     <main class="container mx-auto my-8 px-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        <section class="lg:col-span-2">
-            <div class="flex items-center justify-between mb-6">
-                <h2 class="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Koleksi Buku</h2>
-                <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Klik kartu untuk melihat detail riwayat & mencoba transaksi</span>
+        <section class="lg:col-span-2 space-y-8">
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-750 shadow-sm">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="text-lg">📷</span>
+                    <h2 class="text-base font-bold text-slate-900 dark:text-white tracking-tight">Pindai QR Code Buku</h2>
+                </div>
+                <p class="text-xs text-slate-400 dark:text-slate-400 mb-4">Arahkan kamera ke QR Code berisi ID Buku (contoh: buku1) untuk mencarinya secara instan.</p>
+                <div id="qr-reader-container" class="overflow-hidden rounded-xl bg-slate-50 dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-700 p-2">
+                    <div id="reader" class="w-full"></div>
+                </div>
             </div>
-            
-            <div id="container-buku" class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <p class="text-slate-400 dark:text-slate-500 text-sm animate-pulse">Memuat koleksi buku...</p>
+
+            <div>
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Koleksi Buku</h2>
+                    <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Klik kartu atau scan untuk melihat detail riwayat</span>
+                </div>
+                
+                <div id="container-buku" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <p class="text-slate-400 dark:text-slate-500 text-sm animate-pulse">Memuat koleksi buku...</p>
+                </div>
             </div>
         </section>
 
@@ -123,11 +156,50 @@
         let bukuTerpilihId = null;
         let judulBukuTerpilih = '';
         let isAdmin = false; 
+        let html5QrcodeScanner = null;
 
         document.addEventListener("DOMContentLoaded", () => {
             muatKoleksiBuku();
             perbaruiUIStatusRole();
+            inisialisasiQRScanner();
         });
+
+        // ================================================================
+        // FITUR SCANNER QR CODE (INTEGRASI BARU)
+        // ================================================================
+        function inisialisasiQRScanner() {
+            function onScanSuccess(decodedText, decodedResult) {
+                // decodedText merupakan data string hasil scan QR (contoh: "buku3")
+                const bukuIdHasilScan = decodedText.trim();
+                
+                // Panggil request API untuk memastikan buku terdaftar
+                fetch(`${API_URL}/buku`)
+                    .then(res => res.json())
+                    .then(dataBuku => {
+                        const temukanBuku = dataBuku.find(b => (b.id === bukuIdHasilScan || b._id === bukuIdHasilScan));
+                        
+                        if (temukanBuku) {
+                            // Otomatis pilih buku & muat datanya ke panel riwayat transaksi
+                            pilihBuku(bukuIdHasilScan, temukanBuku.judul);
+                            
+                            // Berikan feedback visual scrolling halus ke daftar buku agar pengguna melihat perubahan
+                            document.getElementById('panel-buku-terpilih').scrollIntoView({ behavior: 'smooth' });
+                        } else {
+                            alert(`QR Terbaca: "${bukuIdHasilScan}", namun buku tidak ditemukan di database.`);
+                        }
+                    })
+                    .catch(err => alert("Gagal memverifikasi data QR: " + err.message));
+            }
+
+            function onScanFailure(error) {
+                // Dimatikan agar log console tidak penuh oleh error pencarian frame kamera
+            }
+
+            html5QrcodeScanner = new Html5QrcodeScanner(
+                "reader", { fps: 8, qrbox: { width: 220, height: 220 } }, /* verbose= */ false
+            );
+            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+        }
 
         function handleRoleClick() {
             if (isAdmin) {
@@ -188,7 +260,7 @@
                 if(kontenSimulasi) kontenSimulasi.classList.remove('hidden');
                 if(peringatanTamu) peringatanTamu.classList.add('hidden');
             } else {
-                btnRole.className = "text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm hover:scale-105 transition-all focus:outline-none";
+                btnRole.className = "text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-770 shadow-sm hover:scale-105 transition-all focus:outline-none";
                 btnRole.innerText = "Mode Tamu (Klik untuk Login Admin)";
                 
                 if(kontenSimulasi) kontenSimulasi.classList.add('hidden');
@@ -229,8 +301,13 @@
 
                         const idBukuValid = buku.id || buku._id || '';
 
+                        // Menghasilkan border khusus jika id buku ini sedang aktif terpilih (baik via klik maupun via scan)
+                        const borderTerpilih = (bukuTerpilihId === idBukuValid) 
+                            ? 'border-indigo-500 ring-2 ring-indigo-400/20 bg-indigo-50/20 dark:bg-indigo-950/10' 
+                            : 'border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-800';
+
                         const kartuBukuHTML = `
-                            <div onclick="pilihBuku('${idBukuValid}', '${buku.judul.replace(/'/g, "\\'")}')" class="group bg-white dark:bg-slate-800 p-4 rounded-xl border ${bukuTerpilihId === idBukuValid ? 'border-indigo-500 ring-2 ring-indigo-400/20' : 'border-slate-200 dark:border-slate-750'} shadow-sm hover:shadow-md hover:border-indigo-400 dark:hover:border-indigo-500 cursor-pointer transition-all duration-300 hover:-translate-y-0.5 flex gap-4">
+                            <div id="card-${idBukuValid}" onclick="pilihBuku('${idBukuValid}', '${buku.judul.replace(/'/g, "\\'")}')" class="group p-4 rounded-xl border ${borderTerpilih} shadow-sm hover:shadow-md hover:border-indigo-400 dark:hover:border-indigo-500 cursor-pointer transition-all duration-300 hover:-translate-y-0.5 flex gap-4">
                                 ${buku.cover_url ? `<img src="${buku.cover_url}" alt="Cover ${buku.judul}" class="w-20 h-28 object-cover rounded-lg shadow-sm bg-slate-100 dark:bg-slate-700" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"/>` : ''}
                                 <div class="${buku.cover_url ? 'hidden' : 'flex'} w-20 h-28 ${warnaKategori} rounded-lg flex-col items-center justify-center p-2 text-center shadow-inner">
                                     <span class="text-xl mb-1">${emojiKoleksi}</span>
@@ -261,10 +338,11 @@
             document.getElementById('panel-uji-backend').classList.remove('hidden');
             document.getElementById('input-nama').value = '';
 
+            // Render ulang koleksi buku agar perubahan border aktif/terpilih langsung terlihat di UI
+            muatKoleksiBuku();
             muatRiwayat(idBuku, judulBuku);
         }
 
-        // FUNGSI UTAMA YANG DIPERBAIKI (MEMBALIK LOG DATA BACKEND)
         function muatRiwayat(idBuku, judulBuku) {
             document.getElementById('panel-buku-terpilih').innerHTML = `
                 <span class="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
@@ -283,7 +361,6 @@
                         return;
                     }
 
-                    // MEMBALIK DATA: Membuat array cadangan agar data terbaru berada di indeks awal/paling atas
                     const riwayatTerbaruDiatas = [...riwayat].reverse();
 
                     riwayatTerbaruDiatas.forEach(item => {
