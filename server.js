@@ -64,8 +64,8 @@ async function seedData() {
         await Buku.insertMany([
             { _id: 'buku1', judul: 'Bulan',            penulis: 'Tere Liye',             kategori: 'Novel',     status: 'Tersedia', cover_url: 'img/bulan.png' },
             { _id: 'buku2', judul: 'Kepribadian MBTI', penulis: 'Yuval Noah Harari',     kategori: 'Psikologi', status: 'Dipinjam', cover_url: 'img/MBTI.png'  },
-            { _id: 'buku3', judul: 'Bumi Manusia',     penulis: 'Pramoedya Ananta Toer', kategori: 'Fiksi',     status: 'Tersedia', cover_url: ''              },
-            { _id: 'buku4', judul: 'Filosofi Teras',   penulis: 'Henry Manampiring',     kategori: 'Filsafat',  status: 'Tersedia', cover_url: ''              },
+            { _id: 'buku3', judul: 'Bumi Manusia',     penulis: 'Pramoedya Ananta Toer', kategori: 'Fiksi',     status: 'Tersedia', cover_url: 'img/bumi_manusia.png'},
+            { _id: 'buku4', judul: 'Filosofi Teras',   penulis: 'Henry Manampiring',     kategori: 'Filsafat',  status: 'Tersedia', cover_url: 'img/filosofi_teras.png'},
         ]);
 
         await Riwayat.insertMany([
@@ -80,9 +80,9 @@ async function seedData() {
             { buku_id: 'buku4', nama: 'Eko Prasetyo',  aksi: 'Kembali', tanggal: '15 April 2026', tipe: 'kembali' },
         ]);
 
-        console.log('Data dummy berhasil dimasukkan ke MongoDB.');
+        console.log('Data berhasil dimasukkan ke MongoDB.');
     } catch (err) {
-        console.error('Gagal seed data:', err.message);
+        console.error('Gagal send data:', err.message);
     }
 }
 
