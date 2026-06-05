@@ -84,22 +84,28 @@ const Riwayat = mongoose.models.riwayat || mongoose.model('riwayat', riwayatSche
 // ENDPOINTS
 // ================================================================
 
-// Endpoint 0: Fitur Seeding Data manual
+// ================================================================
+// ENDPOINTS
+// ================================================================
+
+// Endpoint 0: Fitur Seeding Data otomatis/manual dengan Auto-Refresh
 app.get('/api/seed', async (req, res) => {
     await connectToDatabase();
     try {
-        const count = await Buku.countDocuments();
-        if (count > 0) {
-            return res.json({ message: 'Database sudah memiliki data. Proses seeding dilewati.' });
-        }
+        // PERBAIKAN: Hapus data lama terlebih dahulu agar database "merefresh" dirinya sendiri
+        await Buku.deleteMany({});
+        await Riwayat.deleteMany({});
+        console.log('Database lama berhasil dibersihkan untuk refresh data.');
 
+        // Masukkan kembali data buku yang segar
         await Buku.insertMany([
-            { _id: 'buku1', judul: 'Bulan',           penulis: 'Tere Liye',             kategori: 'Novel',     status: 'Tersedia', cover_url: '/img/bulan.png' },
+            { _id: 'buku1', judul: 'Bulan',           penulis: 'Tere Liye',             kategori: 'Novel',     status: 'Tersedia', cover_url: '/img/BULAN.png' },
             { _id: 'buku2', judul: 'Kepribadian MBTI', penulis: 'Kim Sona',             kategori: 'Psikologi', status: 'Dipinjam',  cover_url: '/img/MBTI.png'  },
-            { _id: 'buku3', judul: 'Bumi Manusia',     penulis: 'Pramoedya Ananta Toer', kategori: 'Fiksi',     status: 'Tersedia', cover_url: '/img/bumimanusia.png'},
-            { _id: 'buku4', judul: 'Filosofi Teras',   penulis: 'Henry Manampiring',     kategori: 'Filsafat',  status: 'Tersedia', cover_url: '/img/filosofiteras.png'},
+            { _id: 'buku3', judul: 'Bumi Manusia',     penulis: 'Pramoedya Ananta Toer', kategori: 'Fiksi',     status: 'Tersedia', cover_url: '/img/BUMI.png'},
+            { _id: 'buku4', judul: 'Filosofi Teras',   penulis: 'Henry Manampiring',      kategori: 'Filsafat',  status: 'Tersedia', cover_url: '/img/FILOSOFI.png'},
         ]);
 
+        // Masukkan kembali data riwayat yang segar
         await Riwayat.insertMany([
             { buku_id: 'buku1', nama: 'Andi Wijaya',   aksi: 'Kembali', tanggal: '20 Mei 2026',   tipe: 'kembali' },
             { buku_id: 'buku1', nama: 'Andi Wijaya',   aksi: 'Pinjam',  tanggal: '13 Mei 2026',   tipe: 'pinjam'  },
@@ -112,9 +118,9 @@ app.get('/api/seed', async (req, res) => {
             { buku_id: 'buku4', nama: 'Eko Prasetyo',  aksi: 'Kembali', tanggal: '15 April 2026', tipe: 'kembali' },
         ]);
 
-        return res.json({ message: 'Data awal perpustakaan berhasil dimasukkan ke MongoDB.' });
+        return res.json({ message: 'Database berhasil direfresh! Data lama dihapus dan data awal berhasil dimasukkan kembali.' });
     } catch (err) {
-        return res.status(500).json({ error: 'Gagal melakukan seeding data: ' + err.message });
+        return res.status(500).json({ error: 'Gagal melakukan refresh data: ' + err.message });
     }
 });
 
