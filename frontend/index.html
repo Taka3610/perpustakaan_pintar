@@ -338,20 +338,83 @@
                         return;
                     }
 
-                    dataBuku.forEach(buku => {
-                        let warnaKategori = 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400';
-                        let emojiKoleksi = '📖';
+                    function muatKoleksiBuku() {
+    const containerBuku = document.getElementById('container-buku');
+    fetch(`${API_URL}/buku`)
+        .then(res => res.json())
+        .then(dataBuku => {
+            // Kosongkan container di awal
+            containerBuku.innerHTML = '';
+            
+            if (dataBuku.length === 0) {
+                containerBuku.innerHTML = '<p class="text-slate-400 text-sm">Tidak ada koleksi buku.</p>';
+                return;
+            }
 
-                        if (buku.kategori === 'Psikologi') {
-                            warnaKategori = 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400';
-                            emojiKoleksi = '🧠';
-                        } else if (buku.kategori === 'Fiksi') {
-                            warnaKategori = 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400';
-                            emojiKoleksi = '📜';
-                        } else if (buku.kategori === 'Filsafat') {
-                            warnaKategori = 'bg-purple-50 text-purple-600 dark:bg-purple-950/60 dark:text-purple-400';
-                            emojiKoleksi = '🧘';
-                        }
+            // PERBAIKAN: Gunakan variabel penampung string agar HTML tidak di-render setengah-setengah
+            let semuaKartuHTML = '';
+
+            dataBuku.forEach(buku => {
+                let warnaKategori = 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400';
+                let emojiKoleksi = '📖';
+
+                if (buku.kategori === 'Psikologi') {
+                    warnaKategori = 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400';
+                    emojiKoleksi = '🧠';
+                } else if (buku.kategori === 'Fiksi') {
+                    warnaKategori = 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400';
+                    emojiKoleksi = '📜';
+                } else if (buku.kategori === 'Filsafat') {
+                    warnaKategori = 'bg-purple-50 text-purple-600 dark:bg-purple-950/60 dark:text-purple-400';
+                    emojiKoleksi = '🧘';
+                }
+
+                const isTersedia = buku.status === 'Tersedia';
+                const warnaStatus = isTersedia 
+                    ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-100 dark:border-emerald-900/30'
+                    : 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border-rose-100 dark:border-rose-900/30';
+
+                const idBukuValid = buku.id || buku._id || '';
+
+                const borderTerpilih = (bukuTerpilihId === idBukuValid) 
+                    ? 'border-indigo-500 ring-2 ring-indigo-400/20 bg-indigo-50/20 dark:bg-indigo-950/10' 
+                    : 'border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-800';
+
+                // PERBAIKAN: Pastikan properti "cover_url" pada database Anda memang berisi URL gambar (contoh: https://... atau /images/...)
+                const kartuBukuHTML = `
+                    <div id="card-${idBukuValid}" onclick="pilihBuku('${idBukuValid}', '${buku.judul.replace(/'/g, "\\'")}')" class="group p-4 rounded-xl border ${borderTerpilih} shadow-sm hover:shadow-md hover:border-indigo-400 dark:hover:border-indigo-500 cursor-pointer transition-all duration-300 hover:-translate-y-0.5 flex gap-4">
+                        
+                        ${buku.cover_url ? `
+                            <img src="${buku.cover_url}" alt="Cover ${buku.judul}" class="w-20 h-28 object-cover rounded-lg shadow-sm bg-slate-100 dark:bg-slate-700 block" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"/>
+                        ` : ''}
+                        
+                        <div class="${buku.cover_url ? 'hidden' : 'flex'} w-20 h-28 ${warnaKategori} rounded-lg flex-col items-center justify-center p-2 text-center shadow-inner">
+                            <span class="text-xl mb-1">${emojiKoleksi}</span>
+                            <span class="text-[10px] font-bold uppercase tracking-wider truncate w-full">${buku.judul}</span>
+                        </div>
+
+                        <div class="flex flex-col justify-between flex-1">
+                            <div>
+                                <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded ${warnaKategori}">${buku.kategori}</span>
+                                <h3 class="font-bold text-slate-900 dark:text-white text-base mt-1.5 leading-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">${buku.judul}</h3>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${buku.penulis}</p>
+                            </div>
+                            <span class="text-[11px] border px-2 py-0.5 rounded-md w-max font-semibold shadow-sm ${warnaStatus}">${buku.status}</span>
+                        </div>
+                    </div>
+                `;
+                
+                // Gabungkan ke string penampung terlebih dahulu
+                semuaKartuHTML += kartuBukuHTML;
+            });
+
+            // Masukkan sekaligus setelah loop selesai
+            containerBuku.innerHTML = semuaKartuHTML;
+        })
+        .catch(err => {
+            containerBuku.innerHTML = '<p class="text-rose-500 text-sm">Gagal terhubung ke server backend.</p>';
+        });
+}
 
                         const isTersedia = buku.status === 'Tersedia';
                         const warnaStatus = isTersedia 
