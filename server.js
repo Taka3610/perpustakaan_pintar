@@ -95,7 +95,7 @@ app.get('/api/seed', async (req, res) => {
 
         // Catatan penting: Pastikan penulisan nama file di folder frontend/img/ sama PERSIS huruf besar-kecilnya dengan teks di bawah ini!
         await Buku.insertMany([
-            { _id: 'buku1', judul: 'Bulan',           penulis: 'Tere Liye',             kategori: 'Novel',     status: 'Tersedia', cover_url: '/img/Bulan.png' },
+            { _id: 'buku1', judul: 'Bulan',           penulis: 'Tere Liye',             kategori: 'Novel',     status: 'Tersedia', cover_url: '/img/bulan.png' },
             { _id: 'buku2', judul: 'Kepribadian MBTI', penulis: 'Kim Sona',             kategori: 'Psikologi', status: 'Dipinjam',  cover_url: '/img/MBTI.png'  },
             { _id: 'buku3', judul: 'Bumi Manusia',     penulis: 'Pramoedya Ananta Toer', kategori: 'Fiksi',     status: 'Tersedia', cover_url: '/img/bumi_manusia.png'},
             { _id: 'buku4', judul: 'Filosofi Teras',   penulis: 'Henry Manampiring',     kategori: 'Filsafat',  status: 'Tersedia', cover_url: '/img/filosofi_teras.png'},
