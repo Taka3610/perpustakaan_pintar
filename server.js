@@ -195,25 +195,97 @@ app.post('/api/transaksi', async (req, res) => {
 });
 
 // ================================================================
-// ENDPOINT BARU: Ambil Spesifik 1 Buku Berdasarkan ID (Untuk QR Scan)
+// FITUR SCANNER QR CODE - LANGSUNG OTOMATIS KIRIM TRANSAKSI
 // ================================================================
-app.get('/api/buku/:id', async (req, res) => {
-    await connectToDatabase();
-    try {
-        const { id } = req.params;
-        const buku = await Buku.findById(id).lean();
+function inisialisasiQRScanner() {
+    let sedangMemprosesScan = false; // Mencegah scan ganda (double-input) dalam waktu bersamaan
 
-        if (!buku) {
-            return res.status(404).json({ error: 'Buku tidak ditemukan. Pastikan QR Code benar.' });
-        }
+    function onScanSuccess(decodedText, decodedResult) {
+        // Jika scanner sedang memproses data sebelumnya, abaikan scan baru ini
+        if (sedangMemprosesScan) return;
+        
+        const bukuIdHasilScan = decodedText.trim();
+        sedangMemprosesScan = true; // Kunci proses
+        
+        console.log(`Membaca QR Buku ID: ${bukuIdHasilScan}`);
+        
+        // 1. Ambil data buku terlebih dahulu untuk memeriksa statusnya (Tersedia / Dipinjam)
+        fetch(`${API_URL}/buku`)
+            .then(res => res.json())
+            .then(dataBuku => {
+                const temukanBuku = dataBuku.find(b => (b.id === bukuIdHasilScan || b._id === bukuIdHasilScan));
+                
+                if (!temukanBuku) {
+                    alert(`QR Terbaca: "${bukuIdHasilScan}", namun ID buku ini tidak terdaftar di database.`);
+                    sedangMemprosesScan = false; // Buka kunci jika gagal
+                    return;
+                }
 
-        // Tambahkan field id agar kompatibel dengan frontend
-        const result = { ...buku, id: buku._id };
-        return res.json(result);
-    } catch (err) {
-        return res.status(500).json({ error: 'Gagal memproses scan: ' + err.message });
+                // Tentukan aksi otomatis berdasarkan status buku saat ini
+                // Jika "Tersedia" -> otomatis Pinjam. Jika selain itu -> otomatis Kembali.
+                const tipeAksiOtomatis = (temukanBuku.status === 'Tersedia') ? 'pinjam' : 'kembali';
+                const teksAksi = (tipeAksiOtomatis === 'pinjam') ? 'Pinjam' : 'Kembali';
+
+                // Siapkan payload data untuk dikirim ke database
+                const payload = {
+                    buku_id: temukanBuku.id || temukanBuku._id,
+                    nama: "Pengguna (Scan QR)", // Nama otomatis agar tidak perlu mengetik isi form
+                    aksi: teksAksi,
+                    tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+                    tipe: tipeAksiOtomatis
+                };
+
+                // 2. Kirim perintah otomatis langsung ke backend transaksi (Simulasi Admin Bypass)
+                fetch(`${API_URL}/transaksi`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'x-role': 'admin' // Bypass otorisasi karena dipicu oleh alat hardware/scan langsung
+                    },
+                    body: JSON.stringify(payload)
+                })
+                .then(res => {
+                    if (!res.ok) throw new Error('Gagal memproses transaksi otomatis di server');
+                    return res.json();
+                })
+                .then(resData => {
+                    // Berhasil masuk database! Beri notifikasi singkat ke layar
+                    alert(`Berhasil! Buku "${temukanBuku.judul}" otomatis dicatat: ${teksAksi}`);
+                    
+                    // Sorot visual buku yang baru saja di-scan
+                    bukuTerpilihId = temukanBuku.id || temukanBuku._id;
+                    judulBukuTerpilih = temukanBuku.judul;
+
+                    // Segarkan data di layar agar status buku & riwayat langsung berubah detik itu juga
+                    muatKoleksiBuku();
+                    muatRiwayat(bukuTerpilihId, judulBukuTerpilih);
+
+                    // Berikan jeda 3 detik sebelum scanner bisa membaca QR berikutnya (menghindari spamming)
+                    setTimeout(() => {
+                        sedangMemprosesScan = false;
+                    }, 3000);
+                })
+                .catch(err => {
+                    alert('Gagal mengirim data: ' + err.message);
+                    sedangMemprosesScan = false;
+                });
+            })
+            .catch(err => {
+                alert("Gagal memverifikasi data ke server: " + err.message);
+                sedangMemprosesScan = false;
+            });
     }
-});
+
+    function onScanFailure(error) {
+        // Dimatikan agar tidak memenuhi log console browser Anda
+    }
+
+    // Jalankan komponen kamera scanner
+    html5QrcodeScanner = new Html5QrcodeScanner(
+        "reader", { fps: 10, qrbox: { width: 220, height: 220 } }, /* verbose= */ false
+    );
+    html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+}
 
 // Endpoint 4: Hapus riwayat transaksi berdasarkan ID Riwayat (DELETE)
 app.delete('/api/riwayat/:id', async (req, res) => {
