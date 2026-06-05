@@ -16,7 +16,6 @@
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
-        /* Styling tambahan untuk menyesuaikan UI box scanner html5-qrcode agar rapi */
         #qr-reader-container button {
             background-color: #4f46e5 !important;
             color: white;
@@ -162,23 +161,24 @@
             muatKoleksiBuku();
             perbaruiUIStatusRole();
             inisialisasiQRScanner();
+            
+            // Mengatur tema awal dari local storage
+            if (localStorage.getItem('theme') === 'dark') {
+                document.documentElement.classList.add('dark');
+            }
         });
 
-        // ================================================================
-        // FITUR SCANNER QR CODE - TRANSAKSI OTOMATIS (PERBAIKAN UTAMA)
-        // ================================================================
         function inisialisasiQRScanner() {
-            let sedangMemprosesScan = false; // Mencegah spam scan ganda dalam milidetik yang sama
+            let sedangMemprosesScan = false;
 
             function onScanSuccess(decodedText, decodedResult) {
-                if (sedangMemprosesScan) return; // Jika sedang mengirim data ke server, abaikan scan baru
+                if (sedangMemprosesScan) return;
                 
                 const bukuIdHasilScan = decodedText.trim();
-                sedangMemprosesScan = true; // Kunci proses
+                sedangMemprosesScan = true;
                 
                 console.log(`Membaca QR Buku ID: ${bukuIdHasilScan}`);
                 
-                // 1. Ambil data buku untuk memeriksa status saat ini (Tersedia atau sedang Dipinjam)
                 fetch(`${API_URL}/buku`)
                     .then(res => res.json())
                     .then(dataBuku => {
@@ -186,24 +186,21 @@
                         
                         if (!temukanBuku) {
                             alert(`QR Terbaca: "${bukuIdHasilScan}", namun buku tidak ditemukan di database.`);
-                            sedangMemprosesScan = false; // Buka kunci jika gagal
+                            sedangMemprosesScan = false;
                             return;
                         }
 
-                        // Menentukan logika aksi otomatis berdasarkan status buku
                         const tipeAksiOtomatis = (temukanBuku.status === 'Tersedia') ? 'pinjam' : 'kembali';
                         const teksAksi = (tipeAksiOtomatis === 'pinjam') ? 'Pinjam' : 'Kembali';
 
-                        // Buat data payload transaksi otomatis
                         const payload = {
                             buku_id: temukanBuku.id || temukanBuku._id,
-                            nama: "Siswa (Scan QR)", // Nama terisi otomatis
+                            nama: "Siswa (Scan QR)",
                             aksi: teksAksi,
                             tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
                             tipe: tipeAksiOtomatis
                         };
 
-                        // 2. Tembak rute transaksi dengan peran bypass 'admin' agar hardware langsung dapat menulis ke DB
                         fetch(`${API_URL}/transaksi`, {
                             method: 'POST',
                             headers: { 
@@ -219,19 +216,15 @@
                         .then(resData => {
                             alert(`Berhasil! Buku "${temukanBuku.judul}" otomatis dicatat: ${teksAksi}`);
                             
-                            // Set buku terpilih ke arah buku yang baru saja discan
                             bukuTerpilihId = temukanBuku.id || temukanBuku._id;
                             judulBukuTerpilih = temukanBuku.judul;
 
-                            // Tampilkan panel riwayat & update UI
                             document.getElementById('panel-uji-backend').classList.remove('hidden');
                             muatKoleksiBuku();
                             muatRiwayat(bukuTerpilihId, judulBukuTerpilih);
 
-                            // Pindahkan layar secara halus ke info riwayat transaksi buku tersebut
                             document.getElementById('panel-buku-terpilih').scrollIntoView({ behavior: 'smooth' });
 
-                            // Beri jeda 3 detik sebelum scanner diizinkan membaca QR Code selanjutnya (anti-spamming)
                             setTimeout(() => {
                                 sedangMemprosesScan = false;
                             }, 3000);
@@ -247,19 +240,14 @@
                     });
             }
 
-            function onScanFailure(error) {
-                // Dimatikan sengaja agar log browser tidak penuh
-            }
+            function onScanFailure(error) {}
 
             html5QrcodeScanner = new Html5QrcodeScanner(
-                "reader", { fps: 10, qrbox: { width: 220, height: 220 } }, /* verbose= */ false
+                "reader", { fps: 10, qrbox: { width: 220, height: 220 } }, false
             );
             html5QrcodeScanner.render(onScanSuccess, onScanFailure);
         }
 
-        // ================================================================
-        // FUNGSI LAINNYA (SINKRONISASI & MANAJEMEN DATA)
-        // ================================================================
         function handleRoleClick() {
             if (isAdmin) {
                 if (confirm("Apakah kamu ingin keluar dari akun Admin?")) {
@@ -315,13 +303,11 @@
             if (isAdmin) {
                 btnRole.className = "text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 px-3 py-1.5 rounded-full border border-rose-100 dark:border-rose-900/50 shadow-sm hover:scale-105 transition-all focus:outline-none";
                 btnRole.innerText = "Admin Dashboard (Klik untuk Logout)";
-                
                 if(kontenSimulasi) kontenSimulasi.classList.remove('hidden');
                 if(peringatanTamu) peringatanTamu.classList.add('hidden');
             } else {
-                btnRole.className = "text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-770 shadow-sm hover:scale-105 transition-all focus:outline-none";
+                btnRole.className = "text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm hover:scale-105 transition-all focus:outline-none";
                 btnRole.innerText = "Mode Tamu (Klik untuk Login Admin)";
-                
                 if(kontenSimulasi) kontenSimulasi.classList.add('hidden');
                 if(peringatanTamu) peringatanTamu.classList.remove('hidden');
             }
@@ -333,88 +319,28 @@
                 .then(res => res.json())
                 .then(dataBuku => {
                     containerBuku.innerHTML = '';
-                    if(dataBuku.length === 0) {
+                    
+                    if (dataBuku.length === 0) {
                         containerBuku.innerHTML = '<p class="text-slate-400 text-sm">Tidak ada koleksi buku.</p>';
                         return;
                     }
 
-                    function muatKoleksiBuku() {
-    const containerBuku = document.getElementById('container-buku');
-    fetch(`${API_URL}/buku`)
-        .then(res => res.json())
-        .then(dataBuku => {
-            // Kosongkan container di awal
-            containerBuku.innerHTML = '';
-            
-            if (dataBuku.length === 0) {
-                containerBuku.innerHTML = '<p class="text-slate-400 text-sm">Tidak ada koleksi buku.</p>';
-                return;
-            }
+                    let semuaKartuHTML = '';
 
-            // PERBAIKAN: Gunakan variabel penampung string agar HTML tidak di-render setengah-setengah
-            let semuaKartuHTML = '';
+                    dataBuku.forEach(buku => {
+                        let warnaKategori = 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400';
+                        let emojiKoleksi = '📖';
 
-            dataBuku.forEach(buku => {
-                let warnaKategori = 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400';
-                let emojiKoleksi = '📖';
-
-                if (buku.kategori === 'Psikologi') {
-                    warnaKategori = 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400';
-                    emojiKoleksi = '🧠';
-                } else if (buku.kategori === 'Fiksi') {
-                    warnaKategori = 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400';
-                    emojiKoleksi = '📜';
-                } else if (buku.kategori === 'Filsafat') {
-                    warnaKategori = 'bg-purple-50 text-purple-600 dark:bg-purple-950/60 dark:text-purple-400';
-                    emojiKoleksi = '🧘';
-                }
-
-                const isTersedia = buku.status === 'Tersedia';
-                const warnaStatus = isTersedia 
-                    ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-100 dark:border-emerald-900/30'
-                    : 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border-rose-100 dark:border-rose-900/30';
-
-                const idBukuValid = buku.id || buku._id || '';
-
-                const borderTerpilih = (bukuTerpilihId === idBukuValid) 
-                    ? 'border-indigo-500 ring-2 ring-indigo-400/20 bg-indigo-50/20 dark:bg-indigo-950/10' 
-                    : 'border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-800';
-
-                // PERBAIKAN: Pastikan properti "cover_url" pada database Anda memang berisi URL gambar (contoh: https://... atau /images/...)
-                const kartuBukuHTML = `
-                    <div id="card-${idBukuValid}" onclick="pilihBuku('${idBukuValid}', '${buku.judul.replace(/'/g, "\\'")}')" class="group p-4 rounded-xl border ${borderTerpilih} shadow-sm hover:shadow-md hover:border-indigo-400 dark:hover:border-indigo-500 cursor-pointer transition-all duration-300 hover:-translate-y-0.5 flex gap-4">
-                        
-                        ${buku.cover_url ? `
-                            <img src="${buku.cover_url}" alt="Cover ${buku.judul}" class="w-20 h-28 object-cover rounded-lg shadow-sm bg-slate-100 dark:bg-slate-700 block" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"/>
-                        ` : ''}
-                        
-                        <div class="${buku.cover_url ? 'hidden' : 'flex'} w-20 h-28 ${warnaKategori} rounded-lg flex-col items-center justify-center p-2 text-center shadow-inner">
-                            <span class="text-xl mb-1">${emojiKoleksi}</span>
-                            <span class="text-[10px] font-bold uppercase tracking-wider truncate w-full">${buku.judul}</span>
-                        </div>
-
-                        <div class="flex flex-col justify-between flex-1">
-                            <div>
-                                <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded ${warnaKategori}">${buku.kategori}</span>
-                                <h3 class="font-bold text-slate-900 dark:text-white text-base mt-1.5 leading-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">${buku.judul}</h3>
-                                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${buku.penulis}</p>
-                            </div>
-                            <span class="text-[11px] border px-2 py-0.5 rounded-md w-max font-semibold shadow-sm ${warnaStatus}">${buku.status}</span>
-                        </div>
-                    </div>
-                `;
-                
-                // Gabungkan ke string penampung terlebih dahulu
-                semuaKartuHTML += kartuBukuHTML;
-            });
-
-            // Masukkan sekaligus setelah loop selesai
-            containerBuku.innerHTML = semuaKartuHTML;
-        })
-        .catch(err => {
-            containerBuku.innerHTML = '<p class="text-rose-500 text-sm">Gagal terhubung ke server backend.</p>';
-        });
-}
+                        if (buku.kategori === 'Psikologi') {
+                            warnaKategori = 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400';
+                            emojiKoleksi = '🧠';
+                        } else if (buku.kategori === 'Fiksi' || buku.kategori === 'Novel') {
+                            warnaKategori = 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400';
+                            emojiKoleksi = '📜';
+                        } else if (buku.kategori === 'Filsafat') {
+                            warnaKategori = 'bg-purple-50 text-purple-600 dark:bg-purple-950/60 dark:text-purple-400';
+                            emojiKoleksi = '🧘';
+                        }
 
                         const isTersedia = buku.status === 'Tersedia';
                         const warnaStatus = isTersedia 
@@ -428,23 +354,26 @@
 
                         const kartuBukuHTML = `
                             <div id="card-${idBukuValid}" onclick="pilihBuku('${idBukuValid}', '${buku.judul.replace(/'/g, "\\'")}')" class="group p-4 rounded-xl border ${borderTerpilih} shadow-sm hover:shadow-md hover:border-indigo-400 dark:hover:border-indigo-500 cursor-pointer transition-all duration-300 hover:-translate-y-0.5 flex gap-4">
-                                ${buku.cover_url ? `<img src="${buku.cover_url}" alt="Cover ${buku.judul}" class="w-20 h-28 object-cover rounded-lg shadow-sm bg-slate-100 dark:bg-slate-700" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"/>` : ''}
-                                <div class="${buku.cover_url ? 'hidden' : 'flex'} w-20 h-28 ${warnaKategori} rounded-lg flex-col items-center justify-center p-2 text-center shadow-inner">
+                                ${buku.cover_url ? `
+                                    <img src="${buku.cover_url}" alt="Cover ${buku.judul}" class="w-20 h-28 object-cover rounded-lg shadow-sm bg-slate-100 dark:bg-slate-700 block" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"/>
+                                ` : ''}
+                                <div class="${buku.cover_url ? 'hidden' : 'flex'} w-20 h-28 ${warnaKategori} rounded-lg flex-col items-center justify-center p-2 text-center shadow-inner flex-shrink-0">
                                     <span class="text-xl mb-1">${emojiKoleksi}</span>
                                     <span class="text-[10px] font-bold uppercase tracking-wider truncate w-full">${buku.judul}</span>
                                 </div>
-                                <div class="flex flex-col justify-between flex-1">
+                                <div class="flex flex-col justify-between flex-1 min-w-0">
                                     <div>
                                         <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded ${warnaKategori}">${buku.kategori}</span>
-                                        <h3 class="font-bold text-slate-900 dark:text-white text-base mt-1.5 leading-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">${buku.judul}</h3>
-                                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${buku.penulis}</p>
+                                        <h3 class="font-bold text-slate-900 dark:text-white text-base mt-1.5 leading-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">${buku.judul}</h3>
+                                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">${buku.penulis}</p>
                                     </div>
                                     <span class="text-[11px] border px-2 py-0.5 rounded-md w-max font-semibold shadow-sm ${warnaStatus}">${buku.status}</span>
                                 </div>
                             </div>
                         `;
-                        containerBuku.innerHTML += kartuBukuHTML;
+                        semuaKartuHTML += kartuBukuHTML;
                     });
+                    containerBuku.innerHTML = semuaKartuHTML;
                 })
                 .catch(err => {
                     containerBuku.innerHTML = '<p class="text-rose-500 text-sm">Gagal terhubung ke server backend.</p>';
@@ -480,14 +409,13 @@
                         return;
                     }
 
-                    const riwayatTerbaruDiatas = [...riwayat].reverse();
-
-                    riwayatTerbaruDiatas.forEach(item => {
+                    // Tampilkan riwayat dari yang paling baru di paling atas
+                    riwayat.forEach(item => {
                         const isPinjam = item.tipe === 'pinjam';
                         const warnaBadge = isPinjam ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/30' : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/30';
                         const iconPoin = isPinjam ? 'bg-amber-500 ring-amber-100 dark:ring-amber-950' : 'bg-emerald-500 ring-emerald-100 dark:ring-emerald-950';
 
-                        const idValid = item.id || item._id || item.id_riwayat || '';
+                        const idValid = item.id || item._id || '';
                         const tombolHapusHTML = isAdmin ? `
                             <button onclick="hapusTransaksi('${idValid}')" class="text-slate-400 hover:text-rose-500 dark:text-slate-600 dark:hover:text-rose-400 p-1 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all focus:outline-none" title="Hapus riwayat ini">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
@@ -520,7 +448,7 @@
                 return;
             }
 
-            if (!idRiwayat || idRiwayat === 'undefined' || idRiwayat === '') {
+            if (!idRiwayat) {
                 alert("Gagal menghapus: Log data tidak valid.");
                 return;
             }
