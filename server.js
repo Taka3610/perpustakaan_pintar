@@ -1,25 +1,54 @@
-const express  = require('express');
-const cors     = require('cors');
+const express = require('express');
+const cors = require('cors');
 const mongoose = require('mongoose');
+const path = require('path');
 
-const app  = express();
+const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ================================================================
-// KONEKSI MONGODB
-// Ganti nilai di bawah, atau set env variable MONGODB_URI
-//   Lokal  : 'mongodb://localhost:27017/perpustakaan'
-//   Atlas  : 'mongodb+srv://<user>:<password>@cluster.mongodb.net/perpustakaan'
+// MIDDLEWARE
+// ================================================================
+app.use(cors());
+app.use(express.json());
+
+// Melayani file gambar statis jika folder 'img' ditaruh di backend (Opsional untuk Lokal)
+app.use('/img', express.static(path.join(__dirname, '../img')));
+
+// ================================================================
+// KONEKSI MONGODB (OPTIMASI SERVERLESS VERCEL)
 // ================================================================
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/perpustakaan';
 
-mongoose
-    .connect(MONGODB_URI)
-    .then(() => {
-        console.log('Terhubung ke MongoDB.');
-        seedData();
-    })
-    .catch((err) => console.error('Gagal terhubung ke MongoDB:', err.message));
+let cachedConnection = global.mongoose;
+
+if (!cachedConnection) {
+    cachedConnection = global.mongoose = { conn: null, promise: null };
+}
+
+async function connectToDatabase() {
+    if (cachedConnection.conn) {
+        return cachedConnection.conn;
+    }
+
+    if (!cachedConnection.promise) {
+        cachedConnection.promise = mongoose.connect(MONGODB_URI, {
+            bufferCommands: false,
+        }).then((mongooseInstance) => {
+            console.log('Terhubung ke MongoDB.');
+            return mongooseInstance;
+        });
+    }
+
+    try {
+        cachedConnection.conn = await cachedConnection.promise;
+    } catch (e) {
+        cachedConnection.promise = null;
+        throw e;
+    }
+
+    return cachedConnection.conn;
+}
 
 // ================================================================
 // SKEMA & MODEL
@@ -50,18 +79,23 @@ const riwayatSchema = new mongoose.Schema(
     { versionKey: false }
 );
 
-const Buku    = mongoose.model('buku',    bukuSchema);
-const Riwayat = mongoose.model('riwayat', riwayatSchema);
+// Mencegah error 'OverwriteModelError' akibat compile ulang model di lingkungan serverless Vercel
+const Buku    = mongoose.models.buku || mongoose.model('buku', bukuSchema);
+const Riwayat = mongoose.models.riwayat || mongoose.model('riwayat', riwayatSchema);
 
 // ================================================================
-// SEED DATA  (berjalan otomatis sekali saat koneksi berhasil)
+// ENDPOINTS
 // ================================================================
-async function seedData() {
+
+// Endpoint 0: Fitur Seeding Data manual (Buka URL domain-kamu.com/api/seed SEKALI saja saat awal deploy)
+app.get('/api/seed', async (req, res) => {
+    await connectToDatabase();
     try {
         const count = await Buku.countDocuments();
-        if (count > 0) return; // Data sudah ada, lewati
+        if (count > 0) {
+            return res.json({ message: 'Database sudah memiliki data. Proses seeding dilewati.' });
+        }
 
-        // Ganti bagian seedData() pada model Buku menjadi seperti ini:
         await Buku.insertMany([
             { _id: 'buku1', judul: 'Bulan',           penulis: 'Tere Liye',             kategori: 'Novel',     status: 'Tersedia', cover_url: '/img/bulan.png' },
             { _id: 'buku2', judul: 'Kepribadian MBTI', penulis: 'Yuval Noah Harari',     kategori: 'Psikologi', status: 'Dipinjam',  cover_url: '/img/MBTI.png'  },
@@ -81,24 +115,15 @@ async function seedData() {
             { buku_id: 'buku4', nama: 'Eko Prasetyo',  aksi: 'Kembali', tanggal: '15 April 2026', tipe: 'kembali' },
         ]);
 
-        console.log('Data berhasil dimasukkan ke MongoDB.');
+        return res.json({ message: 'Data awal perpustakaan berhasil dimasukkan ke MongoDB.' });
     } catch (err) {
-        console.error('Gagal send data:', err.message);
+        return res.status(500).json({ error: 'Gagal melakukan seeding data: ' + err.message });
     }
-}
-
-// ================================================================
-// MIDDLEWARE
-// ================================================================
-app.use(cors());
-app.use(express.json());
-
-// ================================================================
-// ENDPOINTS
-// ================================================================
+});
 
 // Endpoint 1: Ambil semua koleksi buku (GET)
 app.get('/api/buku', async (req, res) => {
+    await connectToDatabase();
     try {
         const buku = await Buku.find().sort({ _id: 1 }).lean();
 
@@ -112,6 +137,7 @@ app.get('/api/buku', async (req, res) => {
 
 // Endpoint 2: Ambil riwayat transaksi berdasarkan ID Buku (GET)
 app.get('/api/riwayat/:bukuId', async (req, res) => {
+    await connectToDatabase();
     try {
         const { bukuId } = req.params;
         const riwayat = await Riwayat.find({ buku_id: bukuId }).sort({ _id: -1 }).lean();
@@ -126,8 +152,9 @@ app.get('/api/riwayat/:bukuId', async (req, res) => {
 
 // Endpoint 3: Tambah transaksi baru (POST) — DIKUNCI HANYA UNTUK ADMIN
 app.post('/api/transaksi', async (req, res) => {
+    await connectToDatabase();
+    
     // 1. Validasi Role Admin dari Header
-    //    Frontend harus kirim header: { 'x-role': 'admin' }
     const userRole = req.headers['x-role'];
     if (userRole !== 'admin') {
         return res.status(403).json({ error: 'Akses Ditolak. Hanya admin yang diizinkan untuk menambah transaksi.' });
@@ -169,9 +196,9 @@ app.post('/api/transaksi', async (req, res) => {
 
 // Endpoint 4: Hapus riwayat transaksi berdasarkan ID Riwayat (DELETE)
 app.delete('/api/riwayat/:id', async (req, res) => {
+    await connectToDatabase();
     const { id } = req.params;
 
-    // MongoDB pakai ObjectId (string 24 karakter hex), bukan parseInt seperti SQLite
     if (!mongoose.Types.ObjectId.isValid(id)) {
         return res.status(400).json({ error: 'Format ID riwayat tidak valid.' });
     }
@@ -189,11 +216,16 @@ app.delete('/api/riwayat/:id', async (req, res) => {
     }
 });
 
-// ================================================================
-// JALANKAN SERVER
-// ================================================================
-app.listen(PORT, () => {
-    console.log(`Backend berjalan di http://localhost:${PORT}`);
+// Default Root API route
+app.get('/api', (req, res) => {
+    res.send('Backend Perpustakaan MongoDB Mongoose siap digunakan.');
 });
+
+// Menjalankan server secara lokal (Hanya dieksekusi jika bukan di lingkungan production Vercel)
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`Backend berjalan di http://localhost:${PORT}`);
+    });
+}
 
 module.exports = app;
