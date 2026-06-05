@@ -84,7 +84,7 @@ const Riwayat = mongoose.models.riwayat || mongoose.model('riwayat', riwayatSche
 // ENDPOINTS
 // ================================================================
 
-// Endpoint 0: Fitur Seeding Data manual (Jalur cover_url sudah diperbaiki ke rute publik)
+// Endpoint 0: Fitur Seeding Data manual
 app.get('/api/seed', async (req, res) => {
     await connectToDatabase();
     try {
@@ -93,7 +93,6 @@ app.get('/api/seed', async (req, res) => {
             return res.json({ message: 'Database sudah memiliki data. Proses seeding dilewati.' });
         }
 
-        // Catatan penting: Pastikan penulisan nama file di folder frontend/img/ sama PERSIS huruf besar-kecilnya dengan teks di bawah ini!
         await Buku.insertMany([
             { _id: 'buku1', judul: 'Bulan',           penulis: 'Tere Liye',             kategori: 'Novel',     status: 'Tersedia', cover_url: '/img/bulan.png' },
             { _id: 'buku2', judul: 'Kepribadian MBTI', penulis: 'Kim Sona',             kategori: 'Psikologi', status: 'Dipinjam',  cover_url: '/img/MBTI.png'  },
@@ -119,7 +118,7 @@ app.get('/api/seed', async (req, res) => {
     }
 });
 
-// Endpoint Darurat: Gunakan ini untuk menghapus data lama yang salah sebelum me-seed kembali
+// Endpoint Darurat: Mengosongkan Database
 app.get('/api/reset-buku', async (req, res) => {
     await connectToDatabase();
     try {
@@ -172,6 +171,7 @@ app.post('/api/transaksi', async (req, res) => {
     const statusBaru = tipe === 'pinjam' ? 'Dipinjam' : 'Tersedia';
 
     try {
+        // Karena _id buku berupa String biasa (buku1, buku2), kita langsung cari pakai string id nya
         const updatedBuku = await Buku.findByIdAndUpdate(
             buku_id,
             { status: statusBaru },
@@ -193,99 +193,6 @@ app.post('/api/transaksi', async (req, res) => {
         return res.status(500).json({ error: 'Terjadi kesalahan: ' + err.message });
     }
 });
-
-// ================================================================
-// FITUR SCANNER QR CODE - LANGSUNG OTOMATIS KIRIM TRANSAKSI
-// ================================================================
-function inisialisasiQRScanner() {
-    let sedangMemprosesScan = false; // Mencegah scan ganda (double-input) dalam waktu bersamaan
-
-    function onScanSuccess(decodedText, decodedResult) {
-        // Jika scanner sedang memproses data sebelumnya, abaikan scan baru ini
-        if (sedangMemprosesScan) return;
-        
-        const bukuIdHasilScan = decodedText.trim();
-        sedangMemprosesScan = true; // Kunci proses
-        
-        console.log(`Membaca QR Buku ID: ${bukuIdHasilScan}`);
-        
-        // 1. Ambil data buku terlebih dahulu untuk memeriksa statusnya (Tersedia / Dipinjam)
-        fetch(`${API_URL}/buku`)
-            .then(res => res.json())
-            .then(dataBuku => {
-                const temukanBuku = dataBuku.find(b => (b.id === bukuIdHasilScan || b._id === bukuIdHasilScan));
-                
-                if (!temukanBuku) {
-                    alert(`QR Terbaca: "${bukuIdHasilScan}", namun ID buku ini tidak terdaftar di database.`);
-                    sedangMemprosesScan = false; // Buka kunci jika gagal
-                    return;
-                }
-
-                // Tentukan aksi otomatis berdasarkan status buku saat ini
-                // Jika "Tersedia" -> otomatis Pinjam. Jika selain itu -> otomatis Kembali.
-                const tipeAksiOtomatis = (temukanBuku.status === 'Tersedia') ? 'pinjam' : 'kembali';
-                const teksAksi = (tipeAksiOtomatis === 'pinjam') ? 'Pinjam' : 'Kembali';
-
-                // Siapkan payload data untuk dikirim ke database
-                const payload = {
-                    buku_id: temukanBuku.id || temukanBuku._id,
-                    nama: "Pengguna (Scan QR)", // Nama otomatis agar tidak perlu mengetik isi form
-                    aksi: teksAksi,
-                    tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-                    tipe: tipeAksiOtomatis
-                };
-
-                // 2. Kirim perintah otomatis langsung ke backend transaksi (Simulasi Admin Bypass)
-                fetch(`${API_URL}/transaksi`, {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'x-role': 'admin' // Bypass otorisasi karena dipicu oleh alat hardware/scan langsung
-                    },
-                    body: JSON.stringify(payload)
-                })
-                .then(res => {
-                    if (!res.ok) throw new Error('Gagal memproses transaksi otomatis di server');
-                    return res.json();
-                })
-                .then(resData => {
-                    // Berhasil masuk database! Beri notifikasi singkat ke layar
-                    alert(`Berhasil! Buku "${temukanBuku.judul}" otomatis dicatat: ${teksAksi}`);
-                    
-                    // Sorot visual buku yang baru saja di-scan
-                    bukuTerpilihId = temukanBuku.id || temukanBuku._id;
-                    judulBukuTerpilih = temukanBuku.judul;
-
-                    // Segarkan data di layar agar status buku & riwayat langsung berubah detik itu juga
-                    muatKoleksiBuku();
-                    muatRiwayat(bukuTerpilihId, judulBukuTerpilih);
-
-                    // Berikan jeda 3 detik sebelum scanner bisa membaca QR berikutnya (menghindari spamming)
-                    setTimeout(() => {
-                        sedangMemprosesScan = false;
-                    }, 3000);
-                })
-                .catch(err => {
-                    alert('Gagal mengirim data: ' + err.message);
-                    sedangMemprosesScan = false;
-                });
-            })
-            .catch(err => {
-                alert("Gagal memverifikasi data ke server: " + err.message);
-                sedangMemprosesScan = false;
-            });
-    }
-
-    function onScanFailure(error) {
-        // Dimatikan agar tidak memenuhi log console browser Anda
-    }
-
-    // Jalankan komponen kamera scanner
-    html5QrcodeScanner = new Html5QrcodeScanner(
-        "reader", { fps: 10, qrbox: { width: 220, height: 220 } }, /* verbose= */ false
-    );
-    html5QrcodeScanner.render(onScanSuccess, onScanFailure);
-}
 
 // Endpoint 4: Hapus riwayat transaksi berdasarkan ID Riwayat (DELETE)
 app.delete('/api/riwayat/:id', async (req, res) => {
