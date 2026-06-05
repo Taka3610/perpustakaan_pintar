@@ -54,7 +54,6 @@ async function connectToDatabase() {
 // SKEMA & MODEL
 // ================================================================
 
-// Buku: _id berupa string custom ("buku1", "buku2", dst.)
 const bukuSchema = new mongoose.Schema(
     {
         _id:       { type: String },
@@ -67,7 +66,6 @@ const bukuSchema = new mongoose.Schema(
     { versionKey: false }
 );
 
-// Riwayat: _id berupa ObjectId default MongoDB
 const riwayatSchema = new mongoose.Schema(
     {
         buku_id: { type: String, required: true, ref: 'buku' },
@@ -79,7 +77,6 @@ const riwayatSchema = new mongoose.Schema(
     { versionKey: false }
 );
 
-// Mencegah error 'OverwriteModelError' akibat compile ulang model di lingkungan serverless Vercel
 const Buku    = mongoose.models.buku || mongoose.model('buku', bukuSchema);
 const Riwayat = mongoose.models.riwayat || mongoose.model('riwayat', riwayatSchema);
 
@@ -87,7 +84,7 @@ const Riwayat = mongoose.models.riwayat || mongoose.model('riwayat', riwayatSche
 // ENDPOINTS
 // ================================================================
 
-// Endpoint 0: Fitur Seeding Data manual (Buka URL domain-kamu.com/api/seed SEKALI saja saat awal deploy)
+// Endpoint 0: Fitur Seeding Data manual (Jalur cover_url sudah diperbaiki ke rute publik)
 app.get('/api/seed', async (req, res) => {
     await connectToDatabase();
     try {
@@ -96,11 +93,12 @@ app.get('/api/seed', async (req, res) => {
             return res.json({ message: 'Database sudah memiliki data. Proses seeding dilewati.' });
         }
 
+        // Catatan penting: Pastikan penulisan nama file di folder frontend/img/ sama PERSIS huruf besar-kecilnya dengan teks di bawah ini!
         await Buku.insertMany([
-            { _id: 'buku1', judul: 'Bulan',           penulis: 'Tere Liye',             kategori: 'Novel',     status: 'Tersedia', cover_url: 'frontend/img/Bulan.png' },
-            { _id: 'buku2', judul: 'Kepribadian MBTI', penulis: 'Kim Sona',     kategori: 'Psikologi', status: 'Dipinjam',  cover_url: 'frontend/img/MBTI.png'  },
-            { _id: 'buku3', judul: 'Bumi Manusia',     penulis: 'Pramoedya Ananta Toer', kategori: 'Fiksi',     status: 'Tersedia', cover_url: 'frontend/img/bumi_manusia.png'},
-            { _id: 'buku4', judul: 'Filosofi Teras',   penulis: 'Henry Manampiring',     kategori: 'Filsafat',  status: 'Tersedia', cover_url: 'frontend/img/filosofi_teras.png'},
+            { _id: 'buku1', judul: 'Bulan',           penulis: 'Tere Liye',             kategori: 'Novel',     status: 'Tersedia', cover_url: '/img/Bulan.png' },
+            { _id: 'buku2', judul: 'Kepribadian MBTI', penulis: 'Kim Sona',             kategori: 'Psikologi', status: 'Dipinjam',  cover_url: '/img/MBTI.png'  },
+            { _id: 'buku3', judul: 'Bumi Manusia',     penulis: 'Pramoedya Ananta Toer', kategori: 'Fiksi',     status: 'Tersedia', cover_url: '/img/bumi_manusia.png'},
+            { _id: 'buku4', judul: 'Filosofi Teras',   penulis: 'Henry Manampiring',     kategori: 'Filsafat',  status: 'Tersedia', cover_url: '/img/filosofi_teras.png'},
         ]);
 
         await Riwayat.insertMany([
@@ -121,13 +119,23 @@ app.get('/api/seed', async (req, res) => {
     }
 });
 
+// Endpoint Darurat: Gunakan ini untuk menghapus data lama yang salah sebelum me-seed kembali
+app.get('/api/reset-buku', async (req, res) => {
+    await connectToDatabase();
+    try {
+        await Buku.deleteMany({});
+        await Riwayat.deleteMany({});
+        return res.json({ message: 'Database berhasil dikosongkan. Silakan buka rute /api/seed kembali.' });
+    } catch (err) {
+        return res.status(500).json({ error: 'Gagal mereset database: ' + err.message });
+    }
+});
+
 // Endpoint 1: Ambil semua koleksi buku (GET)
 app.get('/api/buku', async (req, res) => {
     await connectToDatabase();
     try {
         const buku = await Buku.find().sort({ _id: 1 }).lean();
-
-        // Tambahkan field `id` agar kompatibel dengan frontend yang pakai buku.id
         const result = buku.map((b) => ({ ...b, id: b._id }));
         return res.json(result);
     } catch (err) {
@@ -141,8 +149,6 @@ app.get('/api/riwayat/:bukuId', async (req, res) => {
     try {
         const { bukuId } = req.params;
         const riwayat = await Riwayat.find({ buku_id: bukuId }).sort({ _id: -1 }).lean();
-
-        // Ubah ObjectId ke string pada field `id` agar frontend bisa pakai untuk DELETE
         const result = riwayat.map((r) => ({ ...r, id: r._id.toString() }));
         return res.json(result);
     } catch (err) {
@@ -150,19 +156,15 @@ app.get('/api/riwayat/:bukuId', async (req, res) => {
     }
 });
 
-// Endpoint 3: Tambah transaksi baru (POST) — DIKUNCI HANYA UNTUK ADMIN
+// Endpoint 3: Tambah transaksi baru (POST)
 app.post('/api/transaksi', async (req, res) => {
     await connectToDatabase();
-    
-    // 1. Validasi Role Admin dari Header
     const userRole = req.headers['x-role'];
     if (userRole !== 'admin') {
         return res.status(403).json({ error: 'Akses Ditolak. Hanya admin yang diizinkan untuk menambah transaksi.' });
     }
 
     const { buku_id, nama, aksi, tanggal, tipe } = req.body;
-
-    // 2. Validasi Kelengkapan Data
     if (!buku_id || !nama || !aksi || !tanggal || !tipe) {
         return res.status(400).json({ error: 'Semua data field harus diisi.' });
     }
@@ -170,7 +172,6 @@ app.post('/api/transaksi', async (req, res) => {
     const statusBaru = tipe === 'pinjam' ? 'Dipinjam' : 'Tersedia';
 
     try {
-        // 3. Update Status Buku
         const updatedBuku = await Buku.findByIdAndUpdate(
             buku_id,
             { status: statusBaru },
@@ -181,7 +182,6 @@ app.post('/api/transaksi', async (req, res) => {
             return res.status(404).json({ error: 'Buku dengan ID tersebut tidak ditemukan.' });
         }
 
-        // 4. Insert Riwayat Baru
         const newRiwayat = await Riwayat.create({ buku_id, nama, aksi, tanggal, tipe });
 
         return res.json({
@@ -205,23 +205,19 @@ app.delete('/api/riwayat/:id', async (req, res) => {
 
     try {
         const deleted = await Riwayat.findByIdAndDelete(id);
-
         if (!deleted) {
             return res.status(404).json({ message: 'Data transaksi tidak ditemukan di database.' });
         }
-
         return res.json({ message: 'Riwayat transaksi berhasil dihapus dari database.' });
     } catch (err) {
         return res.status(500).json({ error: 'Gagal menghapus riwayat: ' + err.message });
     }
 });
 
-// Default Root API route
 app.get('/api', (req, res) => {
     res.send('Backend Perpustakaan MongoDB Mongoose siap digunakan.');
 });
 
-// Menjalankan server secara lokal (Hanya dieksekusi jika bukan di lingkungan production Vercel)
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, () => {
         console.log(`Backend berjalan di http://localhost:${PORT}`);
