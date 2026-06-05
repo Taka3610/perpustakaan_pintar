@@ -194,6 +194,27 @@ app.post('/api/transaksi', async (req, res) => {
     }
 });
 
+// ================================================================
+// ENDPOINT BARU: Ambil Spesifik 1 Buku Berdasarkan ID (Untuk QR Scan)
+// ================================================================
+app.get('/api/buku/:id', async (req, res) => {
+    await connectToDatabase();
+    try {
+        const { id } = req.params;
+        const buku = await Buku.findById(id).lean();
+
+        if (!buku) {
+            return res.status(404).json({ error: 'Buku tidak ditemukan. Pastikan QR Code benar.' });
+        }
+
+        // Tambahkan field id agar kompatibel dengan frontend
+        const result = { ...buku, id: buku._id };
+        return res.json(result);
+    } catch (err) {
+        return res.status(500).json({ error: 'Gagal memproses scan: ' + err.message });
+    }
+});
+
 // Endpoint 4: Hapus riwayat transaksi berdasarkan ID Riwayat (DELETE)
 app.delete('/api/riwayat/:id', async (req, res) => {
     await connectToDatabase();
