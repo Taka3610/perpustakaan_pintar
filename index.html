@@ -182,7 +182,6 @@
                 document.documentElement.classList.add('dark');
             }
 
-            // Sinkronisasi auto-refresh berkala setiap 3 detik untuk memantau sinyal RFID masuk dari ESP32
             setInterval(() => {
                 if(bukuTerpilihId) {
                     muatRiwayatTanpaLoading(bukuTerpilihId);
@@ -190,77 +189,48 @@
             }, 3000);
         });
 
-        // FUNGSI LOGIKA PINTAR: COCOKKAN QR BERDASARKAN JUDUL (SAMA SEPERTI BAR INPUTAN TEKS)
-        function eksekusiTransaksiOtomatis(inputPencarian, labelSumber, callbackSukses) {
+        function eksekusiTransaksiOtomatis(idBuku) {
             if (sedangMemprosesOtomatis) return;
             sedangMemprosesOtomatis = true;
 
-            const teksCari = inputPencarian.trim().toLowerCase();
-
             fetch(`${API_URL}/buku`)
-                .then(res => {
-                    if(!res.ok) throw new Error('Gagal memuat data buku');
-                    return res.json();
-                })
+                .then(res => res.json())
                 .then(dataBuku => {
-                    // 1. Cari berdasarkan Judul Pas (Case-Insensitive)
-                    let temukanBuku = dataBuku.find(b => b.judul && b.judul.toLowerCase() === teksCari);
-                    
-                    // 2. Cadangan: Cari berdasarkan sebagian Judul
+                    const temukanBuku = dataBuku.find(b => b.id === idBuku || b._id === idBuku);
                     if (!temukanBuku) {
-                        temukanBuku = dataBuku.find(b => b.judul && b.judul.toLowerCase().includes(teksCari));
-                    }
-
-                    // 3. Cadangan: Cari berdasarkan ID custom atau _id asli database
-                    if (!temukanBuku) {
-                        temukanBuku = dataBuku.find(b => 
-                            (b.id && b.id.toLowerCase() === teksCari) || 
-                            (b._id && b._id.toLowerCase() === teksCari)
-                        );
-                    }
-                    
-                    if (!temukanBuku) {
-                        console.log(`Pencarian gagal [${labelSumber}]: "${inputPencarian}" tidak terdaftar.`);
+                        alert(`Gagal: Buku dengan kata kunci "${idBuku}" tidak ditemukan.`);
                         sedangMemprosesOtomatis = false;
-                        if(document.getElementById('loading-input-status')) {
-                            document.getElementById('loading-input-status').classList.add('hidden');
-                        }
                         return;
                     }
 
                     bukuTerpilihId = temukanBuku.id || temukanBuku._id;
                     judulBukuTerpilih = temukanBuku.judul;
                     
-                    // Beritahu server tentang buku aktif yang sedang diproses antrean RFID-nya
-                    setBukuAktifKeServer(bukuTerpilihId);
+                    fetch(`${API_URL}/set-buku-aktif`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ buku_id_aktif: bukuTerpilihId })
+                    }).catch(err => console.error("Gagal sinkronisasi ke server"));
 
                     document.getElementById('panel-uji-backend').classList.remove('hidden');
                     muatKoleksiBuku();
                     muatRiwayat(bukuTerpilihId, judulBukuTerpilih);
 
                     document.getElementById('panel-buku-terpilih').scrollIntoView({ behavior: 'smooth' });
-
-                    if (typeof callbackSukses === "function") callbackSukses();
                     
-                    // Berikan jeda debouncing agar kamera tidak memproses ulang instan dalam 2 detik
                     setTimeout(() => {
                         sedangMemprosesOtomatis = false;
                     }, 2000);
                 })
                 .catch(err => {
-                    console.error("Kesalahan sinkronisasi: " + err.message);
+                    alert("Gagal memverifikasi data ke server: " + err.message);
                     sedangMemprosesOtomatis = false;
                 });
         }
 
-        function setBukuAktifKeServer(idBuku) {
-            fetch(`${API_URL}/set-buku-aktif`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ buku_id_aktif: idBuku })
-            }).catch(err => console.error("Koneksi antrean server gagal"));
-        }
-
+        // =========================================================================
+        // HANYA MENAMBAHKAN PENCARIAN JUDUL BUKU SECARA OTOMATIS DI INPUT TEKS
+        // =========================================================================
         function handleInputOtomatis(element) {
             const teksInput = element.value.trim();
             const loadingStatus = document.getElementById('loading-input-status');
@@ -269,28 +239,57 @@
             loadingStatus.classList.remove('hidden');
 
             timerKetik = setTimeout(() => {
-                sedangMemprosesOtomatis = false; 
-                eksekusiTransaksiOtomatis(teksInput, "Input Teks", () => {
-                    element.value = '';
-                    loadingStatus.classList.add('hidden');
-                });
+                const teksCari = teksInput.toLowerCase();
+                fetch(`${API_URL}/buku`)
+                    .then(res => res.json())
+                    .then(dataBuku => {
+                        // 1. Cari judul pas / sebagian
+                        let cocok = dataBuku.find(b => b.judul && b.judul.toLowerCase().includes(teksCari));
+                        // 2. Cadangan cari id pas
+                        if(!cocok) cocok = dataBuku.find(b => (b.id && b.id.toLowerCase() === teksCari) || (b._id && b._id.toLowerCase() === teksCari));
+                        
+                        if (cocok) {
+                            sedangMemprosesOtomatis = false;
+                            eksekusiTransaksiOtomatis(cocok.id || cocok._id);
+                            element.value = '';
+                        }
+                        loadingStatus.classList.add('hidden');
+                    })
+                    .catch(() => loadingStatus.classList.add('hidden'));
             }, 600);
         }
 
+        // =========================================================================
+        // HANYA MENAMBAHKAN LOGIKA AGAR SCAN QR COCOK DENGAN JUDUL BUKU JUGA
+        // =========================================================================
         function inisialisasiQRScanner() {
             let stringHasilTerakhir = "";
             
             function onScanSuccess(decodedText) {
                 const hasilBersih = decodedText.trim();
                 if (!hasilBersih) return;
-                
-                // Mencegah trigger berulang jika kamera menangkap judul QR yang sama terus menerus
-                if (hasilBersih === stringHasilTerakhir && sedangMemprosesOtomatis) {
-                    return; 
-                }
-                
+                if (hasilBersih === stringHasilTerakhir && sedangMemprosesOtomatis) return;
                 stringHasilTerakhir = hasilBersih;
-                eksekusiTransaksiOtomatis(hasilBersih, "Scan QR");
+                
+                const teksCari = hasilBersih.toLowerCase();
+                fetch(`${API_URL}/buku`)
+                    .then(res => res.json())
+                    .then(dataBuku => {
+                        // Fitur tambahan: Cari berdasarkan judul atau sebagian judul terlebih dahulu dari QR
+                        let cocok = dataBuku.find(b => b.judul && b.judul.toLowerCase().includes(teksCari));
+                        // Cadangan: jika tidak ketemu judul, cari berdasarkan kecocokan ID aslinya
+                        if(!cocok) cocok = dataBuku.find(b => (b.id && b.id.toLowerCase() === teksCari) || (b._id && b._id.toLowerCase() === teksCari));
+                        
+                        if (cocok) {
+                            eksekusiTransaksiOtomatis(cocok.id || cocok._id);
+                        } else {
+                            // Jika benar-benar tidak ketemu judul/ID, biarkan fungsi asli mengeksekusinya
+                            eksekusiTransaksiOtomatis(hasilBersih);
+                        }
+                    })
+                    .catch(() => {
+                        eksekusiTransaksiOtomatis(hasilBersih);
+                    });
             }
             
             html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
@@ -323,7 +322,6 @@
             setTimeout(() => { modal.classList.add('hidden'); document.getElementById('form-login').reset(); }, 300);
         }
 
-        // KREDENSIAL LOGIN ASLI SESUAI DATA SCRIPT AWAL
         function prosesLogin(e) {
             e.preventDefault();
             if (document.getElementById('login-username').value === "Alaska" && document.getElementById('login-password').value === "Mankotabatu") {
@@ -398,7 +396,13 @@
             bukuTerpilihId = idBuku;
             judulBukuTerpilih = judulBuku;
             document.getElementById('panel-uji-backend').classList.remove('hidden');
-            setBukuAktifKeServer(idBuku);
+            
+            fetch(`${API_URL}/set-buku-aktif`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ buku_id_aktif: idBuku })
+            }).catch(err => console.error("Gagal sinkronisasi ke server"));
+
             muatKoleksiBuku();
             muatRiwayat(idBuku, judulBuku);
         }
