@@ -73,37 +73,37 @@
                 <div>
                     <div class="flex items-center gap-2 mb-3">
                         <span class="text-lg">📷</span>
-                        <h2 class="text-base font-bold text-slate-900 dark:text-white tracking-tight">Pindai / Masukkan ID Buku</h2>
+                        <h2 class="text-base font-bold text-slate-900 dark:text-white tracking-tight">Pindai ID Buku</h2>
                     </div>
-                    <p class="text-xs text-slate-400 dark:text-slate-400 mb-4">Arahkan kamera ke QR Code atau ketik ID Buku langsung di bawah untuk mencatat transaksi secara otomatis.</p>
+                    <p class="text-xs text-slate-400 dark:text-slate-400 mb-4">Arahkan kamera ke QR Code untuk mencatat transaksi secara otomatis.</p>
                 </div>
 
                 <div id="qr-reader-container" class="overflow-hidden rounded-xl bg-slate-50 dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-700 p-2">
                     <div id="reader" class="w-full"></div>
                 </div>
-
-                <div class="pt-2 border-t border-slate-100 dark:border-slate-700/50">
-                    <label class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Alternatif: Input Teks ID Buku</label>
-                    <form id="form-id-otomatis" onsubmit="prosesIdTeksOtomatis(event)" class="flex gap-2">
-                        <input type="text" id="input-id-teks" placeholder="Contoh: buku1" class="flex-1 text-sm px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-indigo-500 font-mono tracking-wider">
-                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-1">
-                            <span>Kirim</span>
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-                            </svg>
-                        </button>
-                    </form>
-                </div>
             </div>
 
-            <div>
-                <div class="flex items-center justify-between mb-6">
+            <div class="space-y-6">
+                <div class="flex items-center justify-between mb-4">
                     <h2 class="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Koleksi Buku</h2>
                     <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Klik kartu atau scan untuk melihat detail riwayat</span>
                 </div>
                 
                 <div id="container-buku" class="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <p class="text-slate-400 dark:text-slate-500 text-sm animate-pulse">Memuat koleksi buku...</p>
+                </div>
+
+                <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-750 shadow-sm pt-4 mt-6">
+                    <label class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Alternatif: Input Teks ID Buku</label>
+                    <form id="form-id-otomatis" onsubmit="prosesIdTeksOtomatis(event)" class="flex gap-2">
+                        <input type="text" id="input-id-teks" placeholder="Contoh: buku1" class="flex-1 text-sm px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-indigo-500 font-mono tracking-wider text-slate-800 dark:text-slate-100">
+                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-1 flex-shrink-0">
+                            <span>Kirim</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                            </svg>
+                        </button>
+                    </form>
                 </div>
             </div>
         </section>
@@ -172,7 +172,7 @@
         let judulBukuTerpilih = '';
         let isAdmin = false; 
         let html5QrcodeScanner = null;
-        let sedangMemprosesOtomatis = false; // Pengunci transaksi agar tidak dobel
+        let sedangMemprosesOtomatis = false; 
 
         document.addEventListener("DOMContentLoaded", () => {
             muatKoleksiBuku();
@@ -184,7 +184,6 @@
             }
         });
 
-        // FUNGSI INTI UNTUK EKSEKUSI TRANSAKSI OTOMATIS (Dipakai Kamera & Teks Input)
         function eksekusiTransaksiOtomatis(targetBukuId, labelSumber) {
             if (sedangMemprosesOtomatis) return;
             sedangMemprosesOtomatis = true;
@@ -245,12 +244,11 @@
                     });
                 })
                 .catch(err => {
-                    alert("Gagal memverifikasi data ke server: " + err.message);
+                    alert("Gagal verifikasi data ke server: " + err.message);
                     sedangMemprosesOtomatis = false;
                 });
         }
 
-        // Handler saat teks input ID disubmit
         function prosesIdTeksOtomatis(e) {
             e.preventDefault();
             const inputField = document.getElementById('input-id-teks');
@@ -261,16 +259,14 @@
                 return;
             }
 
-            // Jalankan fungsi otomatisasi menggunakan data tulisan
             eksekusiTransaksiOtomatis(idTeks, "Input Teks");
-            inputField.value = ''; // Bersihkan kolom tulisan setelah dikirim
+            inputField.value = ''; 
         }
 
         function inisialisasiQRScanner() {
             function onScanSuccess(decodedText, decodedResult) {
                 const bukuIdHasilScan = decodedText.trim();
                 console.log(`Membaca QR Buku ID: ${bukuIdHasilScan}`);
-                // Jalankan fungsi otomatisasi menggunakan data kamera
                 eksekusiTransaksiOtomatis(bukuIdHasilScan, "Scan QR");
             }
 
@@ -546,6 +542,10 @@
 
         document.getElementById('btn-pinjam').addEventListener('click', () => kirimTransaksiManual('pinjam'));
         document.getElementById('btn-kembali').addEventListener('click', () => kirimTransaksiManual('kembali'));
+
+        if (document.getElementById('btn-pinjam') && document.getElementById('btn-kembali')) {
+             // Listener dipastikan aman
+        }
 
         function toggleDarkMode() {
             const html = document.documentElement;
