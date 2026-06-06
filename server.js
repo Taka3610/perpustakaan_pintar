@@ -51,8 +51,18 @@ async function connectToDatabase() {
 }
 
 // ================================================================
-// SKEMA & MODEL
+// SKEMA & MODEL (STRUKTUR DATABASE)
 // ================================================================
+
+// Skema Baru: Menampung data relasi Kartu RFID ke Nama Anggota/Siswa
+const anggotaSchema = new mongoose.Schema(
+    {
+        rfid_uid: { type: String, required: true, unique: true },
+        nama:     { type: String, required: true },
+        kelas:    { type: String, default: '' }
+    },
+    { versionKey: false }
+);
 
 const bukuSchema = new mongoose.Schema(
     {
@@ -77,15 +87,83 @@ const riwayatSchema = new mongoose.Schema(
     { versionKey: false }
 );
 
+const Anggota = mongoose.models.anggota || mongoose.model('anggota', anggotaSchema);
 const Buku    = mongoose.models.buku || mongoose.model('buku', bukuSchema);
 const Riwayat = mongoose.models.riwayat || mongoose.model('riwayat', riwayatSchema);
 
-// ================================================================
-// ENDPOINTS
-// ================================================================
+// Variabel Global Sementara untuk menyimpan ID Buku yang sedang di-scan QR/diklik di Web
+let idBukuAktifAntrean = null;
 
 // ================================================================
-// ENDPOINTS
+// ENDPOINTS BARU (INTEGRASI ESP32 & REFRESH RFID)
+// ================================================================
+
+// Endpoint Baru 1: Menerima info Buku Aktif yang di-scan QR atau diklik dari web
+app.post('/api/set-buku-aktif', (req, res) => {
+    const { buku_id_aktif } = req.body;
+    idBukuAktifAntrean = buku_id_aktif;
+    console.log(`Buku aktif antrean RFID diatur ke ID: ${idBukuAktifAntrean}`);
+    return res.json({ message: "Antrean buku aktif berhasil diperbarui di server.", buku_id_aktif: idBukuAktifAntrean });
+});
+
+// Endpoint Baru 2: Endpoint Utama Penangkap Sinyal dari ESP32 RFID
+app.post('/api/transaksi-rfid', async (req, res) => {
+    await connectToDatabase();
+    const { rfid_uid, tipe_aksi } = req.body;
+
+    if (!rfid_uid || !tipe_aksi) {
+        return res.status(400).json({ error: "Data kiriman dari ESP32 tidak lengkap." });
+    }
+
+    if (!idBukuAktifAntrean) {
+        return res.status(400).json({ error: "Siswa menempelkan kartu, tetapi belum ada buku yang dipilih atau di-scan QR di monitor web." });
+    }
+
+    try {
+        // A. Komunikasi Antar Tabel: Cari pemilik RFID di tabel anggotas
+        const dataSiswa = await Anggota.findOne({ rfid_uid: rfid_uid.toLowerCase().trim() });
+        if (!dataSiswa) {
+            return res.status(44).json({ error: "Kartu RFID tidak terdaftar sebagai anggota perpustakaan." });
+        }
+
+        // B. Cari data buku yang masuk antrean di tabel bukus
+        const dataBuku = await Buku.findById(idBukuAktifAntrean);
+        if (!dataBuku) {
+            return res.status(404).json({ error: "Buku dalam antrean tidak ditemukan di database." });
+        }
+
+        // C. Tentukan teks aksi dan status buku baru
+        const statusBaru = tipe_aksi === 'pinjam' ? 'Dipinjam' : 'Tersedia';
+        const teksAksi = tipe_aksi === 'pinjam' ? 'Pinjam' : 'Kembali';
+
+        // D. Perbarui status buku tersebut di tabel bukus
+        dataBuku.status = statusBaru;
+        await dataBuku.save();
+
+        // E. Catat data gabungan ke tabel riwayats secara otomatis
+        const formatTanggal = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+        
+        const logBaru = await Riwayat.create({
+            buku_id: idBukuAktifAntrean,
+            nama: `${dataSiswa.nama} (${dataSiswa.kelas || 'Siswa'})`,
+            aksi: teksAksi,
+            tanggal: formatTanggal,
+            tipe: tipe_aksi
+        });
+
+        return res.json({
+            message: `Sukses! ${dataSiswa.nama} berhasil melakukan ${teksAksi} buku ${dataBuku.judul}`,
+            transaksiId: logBaru._id.toString()
+        });
+
+    } catch (err) {
+        return res.status(500).json({ error: 'Terjadi kesalahan sistem: ' + err.message });
+    }
+});
+
+
+// ================================================================
+// ENDPOINTS ASLI (KATA-KATA & DATA SEED TIDAK DIUBAH)
 // ================================================================
 
 // Endpoint 0: Fitur Seeding Data otomatis/manual dengan Auto-Refresh
