@@ -69,14 +69,30 @@
     <main class="container mx-auto my-8 px-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         <section class="lg:col-span-2 space-y-8">
-            <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-750 shadow-sm">
-                <div class="flex items-center gap-2 mb-3">
-                    <span class="text-lg">📷</span>
-                    <h2 class="text-base font-bold text-slate-900 dark:text-white tracking-tight">Pindai QR Code Buku</h2>
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-750 shadow-sm space-y-4">
+                <div>
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="text-lg">📷</span>
+                        <h2 class="text-base font-bold text-slate-900 dark:text-white tracking-tight">Pindai / Masukkan ID Buku</h2>
+                    </div>
+                    <p class="text-xs text-slate-400 dark:text-slate-400 mb-4">Arahkan kamera ke QR Code atau ketik ID Buku langsung di bawah untuk mencatat transaksi secara otomatis.</p>
                 </div>
-                <p class="text-xs text-slate-400 dark:text-slate-400 mb-4">Arahkan kamera ke QR Code. Sistem akan mendeteksi status buku dan langsung mencatat transaksi secara otomatis.</p>
+
                 <div id="qr-reader-container" class="overflow-hidden rounded-xl bg-slate-50 dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-700 p-2">
                     <div id="reader" class="w-full"></div>
+                </div>
+
+                <div class="pt-2 border-t border-slate-100 dark:border-slate-700/50">
+                    <label class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Alternatif: Input Teks ID Buku</label>
+                    <form id="form-id-otomatis" onsubmit="prosesIdTeksOtomatis(event)" class="flex gap-2">
+                        <input type="text" id="input-id-teks" placeholder="Contoh: buku1" class="flex-1 text-sm px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-indigo-500 font-mono tracking-wider">
+                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-1">
+                            <span>Kirim</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                            </svg>
+                        </button>
+                    </form>
                 </div>
             </div>
 
@@ -156,88 +172,106 @@
         let judulBukuTerpilih = '';
         let isAdmin = false; 
         let html5QrcodeScanner = null;
+        let sedangMemprosesOtomatis = false; // Pengunci transaksi agar tidak dobel
 
         document.addEventListener("DOMContentLoaded", () => {
             muatKoleksiBuku();
             perbaruiUIStatusRole();
             inisialisasiQRScanner();
             
-            // Mengatur tema awal dari local storage
             if (localStorage.getItem('theme') === 'dark') {
                 document.documentElement.classList.add('dark');
             }
         });
 
-        function inisialisasiQRScanner() {
-            let sedangMemprosesScan = false;
+        // FUNGSI INTI UNTUK EKSEKUSI TRANSAKSI OTOMATIS (Dipakai Kamera & Teks Input)
+        function eksekusiTransaksiOtomatis(targetBukuId, labelSumber) {
+            if (sedangMemprosesOtomatis) return;
+            sedangMemprosesOtomatis = true;
 
-            function onScanSuccess(decodedText, decodedResult) {
-                if (sedangMemprosesScan) return;
-                
-                const bukuIdHasilScan = decodedText.trim();
-                sedangMemprosesScan = true;
-                
-                console.log(`Membaca QR Buku ID: ${bukuIdHasilScan}`);
-                
-                fetch(`${API_URL}/buku`)
-                    .then(res => res.json())
-                    .then(dataBuku => {
-                        const temukanBuku = dataBuku.find(b => (b.id === bukuIdHasilScan || b._id === bukuIdHasilScan));
+            fetch(`${API_URL}/buku`)
+                .then(res => res.json())
+                .then(dataBuku => {
+                    const temukanBuku = dataBuku.find(b => (b.id === targetBukuId || b._id === targetBukuId));
+                    
+                    if (!temukanBuku) {
+                        alert(`Gagal: Buku dengan ID "${targetBukuId}" tidak ditemukan di database.`);
+                        sedangMemprosesOtomatis = false;
+                        return;
+                    }
+
+                    const tipeAksiOtomatis = (temukanBuku.status === 'Tersedia') ? 'pinjam' : 'kembali';
+                    const teksAksi = (tipeAksiOtomatis === 'pinjam') ? 'Pinjam' : 'Kembali';
+
+                    const payload = {
+                        buku_id: temukanBuku.id || temukanBuku._id,
+                        nama: `Siswa (${labelSumber})`,
+                        aksi: teksAksi,
+                        tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+                        tipe: tipeAksiOtomatis
+                    };
+
+                    fetch(`${API_URL}/transaksi`, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'x-role': 'admin' 
+                        },
+                        body: JSON.stringify(payload)
+                    })
+                    .then(res => {
+                        if (!res.ok) throw new Error('Gagal memproses transaksi otomatis di database.');
+                        return res.json();
+                    })
+                    .then(resData => {
+                        alert(`Berhasil! Buku "${temukanBuku.judul}" otomatis dicatat: ${teksAksi}`);
                         
-                        if (!temukanBuku) {
-                            alert(`QR Terbaca: "${bukuIdHasilScan}", namun buku tidak ditemukan di database.`);
-                            sedangMemprosesScan = false;
-                            return;
-                        }
+                        bukuTerpilihId = temukanBuku.id || temukanBuku._id;
+                        judulBukuTerpilih = temukanBuku.judul;
 
-                        const tipeAksiOtomatis = (temukanBuku.status === 'Tersedia') ? 'pinjam' : 'kembali';
-                        const teksAksi = (tipeAksiOtomatis === 'pinjam') ? 'Pinjam' : 'Kembali';
+                        document.getElementById('panel-uji-backend').classList.remove('hidden');
+                        muatKoleksiBuku();
+                        muatRiwayat(bukuTerpilihId, judulBukuTerpilih);
 
-                        const payload = {
-                            buku_id: temukanBuku.id || temukanBuku._id,
-                            nama: "Siswa (Scan QR)",
-                            aksi: teksAksi,
-                            tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-                            tipe: tipeAksiOtomatis
-                        };
+                        document.getElementById('panel-buku-terpilih').scrollIntoView({ behavior: 'smooth' });
 
-                        fetch(`${API_URL}/transaksi`, {
-                            method: 'POST',
-                            headers: { 
-                                'Content-Type': 'application/json',
-                                'x-role': 'admin' 
-                            },
-                            body: JSON.stringify(payload)
-                        })
-                        .then(res => {
-                            if (!res.ok) throw new Error('Gagal memproses transaksi otomatis di database.');
-                            return res.json();
-                        })
-                        .then(resData => {
-                            alert(`Berhasil! Buku "${temukanBuku.judul}" otomatis dicatat: ${teksAksi}`);
-                            
-                            bukuTerpilihId = temukanBuku.id || temukanBuku._id;
-                            judulBukuTerpilih = temukanBuku.judul;
-
-                            document.getElementById('panel-uji-backend').classList.remove('hidden');
-                            muatKoleksiBuku();
-                            muatRiwayat(bukuTerpilihId, judulBukuTerpilih);
-
-                            document.getElementById('panel-buku-terpilih').scrollIntoView({ behavior: 'smooth' });
-
-                            setTimeout(() => {
-                                sedangMemprosesScan = false;
-                            }, 3000);
-                        })
-                        .catch(err => {
-                            alert('Gagal memproses transaksi: ' + err.message);
-                            sedangMemprosesScan = false;
-                        });
+                        setTimeout(() => {
+                            sedangMemprosesOtomatis = false;
+                        }, 2500);
                     })
                     .catch(err => {
-                        alert("Gagal memverifikasi data ke server: " + err.message);
-                        sedangMemprosesScan = false;
+                        alert('Gagal memproses transaksi: ' + err.message);
+                        sedangMemprosesOtomatis = false;
                     });
+                })
+                .catch(err => {
+                    alert("Gagal memverifikasi data ke server: " + err.message);
+                    sedangMemprosesOtomatis = false;
+                });
+        }
+
+        // Handler saat teks input ID disubmit
+        function prosesIdTeksOtomatis(e) {
+            e.preventDefault();
+            const inputField = document.getElementById('input-id-teks');
+            const idTeks = inputField.value.trim();
+
+            if (!idTeks) {
+                alert("Silakan ketik ID Buku terlebih dahulu!");
+                return;
+            }
+
+            // Jalankan fungsi otomatisasi menggunakan data tulisan
+            eksekusiTransaksiOtomatis(idTeks, "Input Teks");
+            inputField.value = ''; // Bersihkan kolom tulisan setelah dikirim
+        }
+
+        function inisialisasiQRScanner() {
+            function onScanSuccess(decodedText, decodedResult) {
+                const bukuIdHasilScan = decodedText.trim();
+                console.log(`Membaca QR Buku ID: ${bukuIdHasilScan}`);
+                // Jalankan fungsi otomatisasi menggunakan data kamera
+                eksekusiTransaksiOtomatis(bukuIdHasilScan, "Scan QR");
             }
 
             function onScanFailure(error) {}
@@ -409,7 +443,6 @@
                         return;
                     }
 
-                    // Tampilkan riwayat dari yang paling baru di paling atas
                     riwayat.forEach(item => {
                         const isPinjam = item.tipe === 'pinjam';
                         const warnaBadge = isPinjam ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/30' : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/30';
@@ -447,12 +480,10 @@
                 alert("Akses ditolak. Silakan beralih ke Mode Admin terlebih dahulu.");
                 return;
             }
-
             if (!idRiwayat) {
                 alert("Gagal menghapus: Log data tidak valid.");
                 return;
             }
-
             if (!confirm("Apakah kamu yakin ingin menghapus log riwayat ini?")) return;
 
             fetch(`${API_URL}/riwayat/${idRiwayat}`, {
