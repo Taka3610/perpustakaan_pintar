@@ -73,7 +73,7 @@
                     <div class="flex items-center gap-2 mb-3">
                         <h2 class="text-base font-bold text-slate-900 dark:text-white tracking-tight">Pindai QR Code Buku</h2>
                     </div>
-                    <p class="text-xs text-slate-400 dark:text-slate-400 mb-4">Arahkan kamera ke QR Code untuk mencatat transaksi secara otomatis.</p>
+                    <p class="text-xs text-slate-400 dark:text-slate-400 mb-4">Arahkan kamera ke QR Code (Berisi Judul Buku) untuk mencatat transaksi secara otomatis.</p>
                 </div>
 
                 <div id="qr-reader-container" class="overflow-hidden rounded-xl bg-slate-50 dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-700 p-2">
@@ -92,9 +92,9 @@
                 </div>
 
                 <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-750 shadow-sm pt-4 mt-6">
-                    <label class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Alternatif: Input ID Buku</label>
+                    <label class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Alternatif: Input Judul atau ID Buku</label>
                     <div class="relative">
-                        <input type="text" id="input-id-teks" oninput="handleInputOtomatis(this)" placeholder="Ketik ID Buku di sini..." class="w-full text-sm px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-indigo-500 font-mono tracking-wider text-slate-800 dark:text-slate-100 shadow-inner">
+                        <input type="text" id="input-id-teks" oninput="handleInputOtomatis(this)" placeholder="Ketik Judul atau ID Buku di sini (Contoh: Bulan / buku1)..." class="w-full text-sm px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-indigo-500 font-mono tracking-wider text-slate-800 dark:text-slate-100 shadow-inner">
                         <div id="loading-input-status" class="absolute right-4 top-3.5 hidden">
                             <svg class="animate-spin h-4 w-4 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -183,17 +183,35 @@
             }
         });
 
-        function eksekusiTransaksiOtomatis(targetBukuId, labelSumber, callbackSukses) {
+        // AKALAN PINTAR: Deteksi Judul Buku atau ID Buku secara fleksibel & Case-Insensitive (Aman huruf kapital/kecil)
+        function eksekusiTransaksiOtomatis(inputPencarian, labelSumber, callbackSukses) {
             if (sedangMemprosesOtomatis) return;
             sedangMemprosesOtomatis = true;
+
+            // Bersihkan spasi depan-belakang dan ubah menjadi huruf kecil semua untuk perbandingan yang aman
+            const teksCari = inputPencarian.trim().toLowerCase();
 
             fetch(`${API_URL}/buku`)
                 .then(res => res.json())
                 .then(dataBuku => {
-                    const temukanBuku = dataBuku.find(b => (b.id === targetBukuId || b._id === targetBukuId));
+                    // 1. CARI BERDASARKAN JUDUL PAS (Case-Insensitive untuk mencocokkan QR Code Judul)
+                    let temukanBuku = dataBuku.find(b => b.judul && b.judul.toLowerCase() === teksCari);
+                    
+                    // 2. CADANGAN JIKA TIDAK KETEMU: Cari yang judulnya mengandung teks tersebut (partial match)
+                    if (!temukanBuku) {
+                        temukanBuku = dataBuku.find(b => b.judul && b.judul.toLowerCase().includes(teksCari));
+                    }
+
+                    // 3. CADANGAN TERAKHIR: Cari berdasarkan kecocokan kolom ID custom atau _id MongoDB
+                    if (!temukanBuku) {
+                        temukanBuku = dataBuku.find(b => 
+                            (b.id && b.id.toLowerCase() === teksCari) || 
+                            (b._id && b._id.toLowerCase() === teksCari)
+                        );
+                    }
                     
                     if (!temukanBuku) {
-                        alert(`Gagal: Buku dengan ID "${targetBukuId}" tidak ditemukan di database.`);
+                        alert(`Gagal: Buku dengan judul atau kata kunci "${inputPencarian}" tidak ditemukan.`);
                         sedangMemprosesOtomatis = false;
                         if(document.getElementById('loading-input-status')) {
                             document.getElementById('loading-input-status').classList.add('hidden');
@@ -201,12 +219,14 @@
                         return;
                     }
 
+                    // Tentukan aksi dinamis berdasarkan status ketersediaan buku saat ini
                     const tipeAksiOtomatis = (temukanBuku.status === 'Tersedia') ? 'pinjam' : 'kembali';
                     const teksAksi = (tipeAksiOtomatis === 'pinjam') ? 'Pinjam' : 'Kembali';
 
+                    // Menggunakan payload ID asli dari penemuan buku di atas (bisa berupa id relasional custom atau _id)
                     const payload = {
                         buku_id: temukanBuku.id || temukanBuku._id,
-                        nama: `(${labelSumber})`,
+                        nama: `Siswa (${labelSumber})`,
                         aksi: teksAksi,
                         tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
                         tipe: tipeAksiOtomatis
@@ -259,35 +279,34 @@
                 });
         }
 
-        // Fungsi baru untuk menghandle ketikan user secara realtime (tanpa tombol)
+        // Menghandle input teks manual secara realtime
         function handleInputOtomatis(element) {
-            const idTeks = element.value.trim();
+            const teksInput = element.value.trim();
             const loadingStatus = document.getElementById('loading-input-status');
             
-            // Hapus timer sebelumnya agar tidak bentrok
             clearTimeout(timerKetik);
 
-            if (!idTeks) {
+            if (!teksInput) {
                 loadingStatus.classList.add('hidden');
                 return;
             }
 
             loadingStatus.classList.remove('hidden');
 
-            // Beri jeda 500ms setelah user berhenti mengetik sebelum menembak fungsi
+            // Menunggu 600ms setelah mengetik agar stabil baru dijalankan fungsinya
             timerKetik = setTimeout(() => {
-                eksekusiTransaksiOtomatis(idTeks, "Input Teks", () => {
-                    element.value = ''; // Reset inputan setelah fungsionalitas berhasil dicatat
+                eksekusiTransaksiOtomatis(teksInput, "Input Teks", () => {
+                    element.value = ''; // Mengosongkan kolom jika transaksi sukses
                     loadingStatus.classList.add('hidden');
                 });
-            }, 500);
+            }, 600);
         }
 
         function inisialisasiQRScanner() {
             function onScanSuccess(decodedText, decodedResult) {
-                const bukuIdHasilScan = decodedText.trim();
-                console.log(`Membaca QR Buku ID: ${bukuIdHasilScan}`);
-                eksekusiTransaksiOtomatis(bukuIdHasilScan, "Scan QR");
+                const hasilScanBuku = decodedText.trim();
+                console.log(`Membaca QR Buku: ${hasilScanBuku}`);
+                eksekusiTransaksiOtomatis(hasilScanBuku, "Scan QR");
             }
 
             function onScanFailure(error) {}
@@ -430,15 +449,15 @@
                 });
         }
 
-        function pilihBuku(idBuku, presidential) {
+        function pilihBuku(idBuku, judulBuku) {
             bukuTerpilihId = idBuku;
-            judulBukuTerpilih = presidential;
+            judulBukuTerpilih = judulBuku;
             
             document.getElementById('panel-uji-backend').classList.remove('hidden');
             document.getElementById('input-nama').value = '';
 
             muatKoleksiBuku();
-            muatRiwayat(idBuku, presidential);
+            muatRiwayat(idBuku, judulBuku);
         }
 
         function muatRiwayat(idBuku, judulBuku) {
