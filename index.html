@@ -73,7 +73,7 @@
                     <div class="flex items-center gap-2 mb-3">
                         <h2 class="text-base font-bold text-slate-900 dark:text-white tracking-tight">Pindai QR Code Buku</h2>
                     </div>
-                    <p class="text-xs text-slate-400 dark:text-slate-400 mb-4">Arahkan kamera ke QR Code (Berisi Judul Buku) untuk mencatat transaksi secara otomatis.</p>
+                    <p class="text-xs text-slate-400 dark:text-slate-400 mb-4">Arahkan kamera ke QR Code untuk mencatat transaksi secara otomatis.</p>
                 </div>
 
                 <div id="qr-reader-container" class="overflow-hidden rounded-xl bg-slate-50 dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-700 p-2">
@@ -94,7 +94,7 @@
                 <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-750 shadow-sm pt-4 mt-6">
                     <label class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Alternatif: Input Judul atau ID Buku</label>
                     <div class="relative">
-                        <input type="text" id="input-id-teks" oninput="handleInputOtomatis(this)" placeholder="Ketik Judul atau ID Buku di sini (Contoh: Bulan / buku1)..." class="w-full text-sm px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-indigo-500 font-mono tracking-wider text-slate-800 dark:text-slate-100 shadow-inner">
+                        <input type="text" id="input-id-teks" oninput="handleInputOtomatis(this)" placeholder="Ketik Judul atau ID Buku di sini..." class="w-full text-sm px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-indigo-500 font-mono tracking-wider text-slate-800 dark:text-slate-100 shadow-inner">
                         <div id="loading-input-status" class="absolute right-4 top-3.5 hidden">
                             <svg class="animate-spin h-4 w-4 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -226,7 +226,7 @@
                     // Menggunakan payload ID asli dari penemuan buku di atas (bisa berupa id relasional custom atau _id)
                     const payload = {
                         buku_id: temukanBuku.id || temukanBuku._id,
-                        nama: `Siswa (${labelSumber})`,
+                        nama: `(${labelSumber})`,
                         aksi: teksAksi,
                         tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
                         tipe: tipeAksiOtomatis
