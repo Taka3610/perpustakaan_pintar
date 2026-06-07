@@ -223,10 +223,13 @@
                     const tipeAksiOtomatis = (temukanBuku.status === 'Tersedia') ? 'pinjam' : 'kembali';
                     const teksAksi = (tipeAksiOtomatis === 'pinjam') ? 'Pinjam' : 'Kembali';
 
+                    // Modifikasi Logika Penamaan: Jika bersumber dari input manual teks, gunakan judul asli bukunya ketimbang teks "(Input Teks)"
+                    const namaLogPencatat = (labelSumber === "Input Teks") ? temukanBuku.judul : `(${labelSumber})`;
+
                     // Menggunakan payload ID asli dari penemuan buku di atas (bisa berupa id relasional custom atau _id)
                     const payload = {
                         buku_id: temukanBuku.id || temukanBuku._id,
-                        nama: `(${labelSumber})`,
+                        nama: namaLogPencatat,
                         aksi: teksAksi,
                         tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
                         tipe: tipeAksiOtomatis
