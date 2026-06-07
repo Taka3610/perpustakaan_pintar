@@ -126,7 +126,7 @@
                     <div id="konten-simulasi-admin" class="hidden">
                         <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">Kelola Pencatatan Manual</h3>
                         <div class="space-y-3">
-                            <input type="text" id="input-nama" placeholder="Masukkan nama anggota..." class="w-full text-xs px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-indigo-500">
+                            <input type="text" id="input-nama" placeholder="Masukkan nama siswa..." class="w-full text-xs px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-indigo-500">
                             <div class="grid grid-cols-2 gap-2">
                                 <button id="btn-pinjam" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold text-xs py-2 rounded-lg transition-colors shadow-xs">Pinjam</button>
                                 <button id="btn-kembali" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs py-2 rounded-lg transition-colors shadow-xs">Kembali</button>
@@ -183,21 +183,20 @@
             }
         });
 
-        // AKALAN PINTAR: Deteksi Judul Buku atau ID Buku secara fleksibel & Case-Insensitive (Aman huruf kapital/kecil)
+        // DETEKSI OTOMATIS: Pencarian Buku Fleksibel & Input Data Sebagai "Siswa"
         function eksekusiTransaksiOtomatis(inputPencarian, labelSumber, callbackSukses) {
             if (sedangMemprosesOtomatis) return;
             sedangMemprosesOtomatis = true;
 
-            // Bersihkan spasi depan-belakang dan ubah menjadi huruf kecil semua untuk perbandingan yang aman
             const teksCari = inputPencarian.trim().toLowerCase();
 
             fetch(`${API_URL}/buku`)
                 .then(res => res.json())
                 .then(dataBuku => {
-                    // 1. CARI BERDASARKAN JUDUL PAS (Case-Insensitive untuk mencocokkan QR Code Judul)
+                    // 1. CARI BERDASARKAN JUDUL PAS (Case-Insensitive)
                     let temukanBuku = dataBuku.find(b => b.judul && b.judul.toLowerCase() === teksCari);
                     
-                    // 2. CADANGAN JIKA TIDAK KETEMU: Cari yang judulnya mengandung teks tersebut (partial match)
+                    // 2. CADANGAN JIKA TIDAK KETEMU: Cari yang judulnya mengandung teks tersebut
                     if (!temukanBuku) {
                         temukanBuku = dataBuku.find(b => b.judul && b.judul.toLowerCase().includes(teksCari));
                     }
@@ -219,17 +218,13 @@
                         return;
                     }
 
-                    // Tentukan aksi dinamis berdasarkan status ketersediaan buku saat ini
                     const tipeAksiOtomatis = (temukanBuku.status === 'Tersedia') ? 'pinjam' : 'kembali';
                     const teksAksi = (tipeAksiOtomatis === 'pinjam') ? 'Pinjam' : 'Kembali';
 
-                    // Modifikasi Logika Penamaan: Jika bersumber dari input manual teks, gunakan judul asli bukunya ketimbang teks "(Input Teks)"
-                    const namaLogPencatat = (labelSumber === "Input Teks") ? temukanBuku.judul : `(${labelSumber})`;
-
-                    // Menggunakan payload ID asli dari penemuan buku di atas (bisa berupa id relasional custom atau _id)
+                    // PERBAIKAN UTAMA: Mengganti nama default (Input Teks/Scan QR) menjadi "Siswa"
                     const payload = {
                         buku_id: temukanBuku.id || temukanBuku._id,
-                        nama: namaLogPencatat,
+                        nama: "Siswa", 
                         aksi: teksAksi,
                         tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
                         tipe: tipeAksiOtomatis
@@ -282,7 +277,6 @@
                 });
         }
 
-        // Menghandle input teks manual secara realtime
         function handleInputOtomatis(element) {
             const teksInput = element.value.trim();
             const loadingStatus = document.getElementById('loading-input-status');
@@ -296,10 +290,9 @@
 
             loadingStatus.classList.remove('hidden');
 
-            // Menunggu 600ms setelah mengetik agar stabil baru dijalankan fungsinya
             timerKetik = setTimeout(() => {
                 eksekusiTransaksiOtomatis(teksInput, "Input Teks", () => {
-                    element.value = ''; // Mengosongkan kolom jika transaksi sukses
+                    element.value = ''; 
                     loadingStatus.classList.add('hidden');
                 });
             }, 600);
@@ -331,6 +324,9 @@
                 bukaModalLogin();
             }
         }
+
+        document.getElementById('btn-pinjam').addEventListener('click', () => kirimTransaksiManual('pinjam'));
+        document.getElementById('btn-kembali').addEventListener('click', () => kirimTransaksiManual('kembali'));
 
         function bukaModalLogin() {
             const modal = document.getElementById('modal-login');
@@ -549,7 +545,7 @@
 
             const nama = document.getElementById('input-nama').value.trim();
             if(!nama) {
-                alert('Silakan isi nama anggota dulu!');
+                alert('Silakan isi nama siswa dulu!');
                 return;
             }
 
@@ -581,9 +577,6 @@
             })
             .catch(err => alert('Gagal mengirim data.'));
         }
-
-        document.getElementById('btn-pinjam').addEventListener('click', () => kirimTransaksiManual('pinjam'));
-        document.getElementById('btn-kembali').addEventListener('click', () => kirimTransaksiManual('kembali'));
 
         function toggleDarkMode() {
             const html = document.documentElement;
